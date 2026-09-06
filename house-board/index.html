@@ -264,7 +264,7 @@ function seedConfig() {
     { id: uid(), name:"Stairs",   slots:1, tasks:"Sweep, Mop, Handrail, Landings" },
     { id: uid(), name:"Floors",   slots:2, tasks:"Hall, Lving room" }
   ];
-  S.config.resources = ["Washing machine","Kitchen stove","Oven"].map(n => ({ id: uid(), name: n }));
+  S.config.resources = ["Washing Machine","Kitchen Stove","Oven"].map(n => ({ id: uid(), name: n }));
 }
 
 async function loadAll() {
@@ -542,7 +542,7 @@ function renderBook() {
     ${IS_MANAGER ? `
       <h3 class="sub-h">Add something to book</h3>
       <div class="row">
-        <label class="stack">Name<input id="rName" placeholder="Washing machine" data-enter="add-res" style="width:220px"></label>
+        <label class="stack">Name<input id="rName" placeholder="Washing Machine" data-enter="add-res" style="width:220px"></label>
         <button class="btn solid" data-action="add-res">Add</button>
       </div>`
       : `<p class="locked">Book and cancel your own hours Freely. Everyone else's slots are locked to you, and
