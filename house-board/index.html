@@ -260,9 +260,9 @@ async function rpc(fn, args) {
 // ===========================================================================
 function seedConfig() {
   S.config.zones = [
-    { id: uid(), name:"Bathroom", slots:2, tasks:"Toilet, shower, sink, mirror, bin" },
-    { id: uid(), name:"Stairs",   slots:1, tasks:"Sweep, mop, handrail, landings" },
-    { id: uid(), name:"Floors",   slots:2, tasks:"Hoover and mop kitchen, hall, living room" }
+    { id: uid(), name:"Bathroom", slots:2, tasks:"Toilet, Shower, Sink, Mirror, Counter" },
+    { id: uid(), name:"Stairs",   slots:1, tasks:"Sweep, Mop, Handrail, Landings" },
+    { id: uid(), name:"Floors",   slots:2, tasks:"Hall, Lving room" }
   ];
   S.config.resources = ["Washing machine","Kitchen stove","Oven"].map(n => ({ id: uid(), name: n }));
 }
@@ -426,16 +426,16 @@ function renderClean() {
         ${override[z.id] && !fixed ? `<p class="byhand">Set by hand for this cycle</p>` : ""}
         <div class="foot">
           <button class="tick" data-action="tick" data-id="${z.id}">
-            <span class="box">✓</span>${done[z.id] ? "Cleaned" : "Mark cleaned"}
+            <span class="box">✓</span>${done[z.id] ? "Cleaned" : "Mark Cleaned"}
           </button>
           ${IS_MANAGER ? `<span>
-            <button class="btn ghost tiny" data-action="edit-zone" data-id="${z.id}">Change who</button>
+            <button class="btn ghost tiny" data-action="edit-zone" data-id="${z.id}">Change Who</button>
             <button class="btn ghost tiny" data-action="del-zone" data-id="${z.id}">Remove</button></span>` : ""}
         </div>`}
     </article>`; }).join("");
 
   return `
-    <h2 class="sec">Cleaning rota</h2>
+    <h2 class="sec">Cleaning Rotation</h2>
     <p class="lede">Areas rotate automatically. Everyone moves along one place each cycle.</p>
 
     <div class="cyclebar">
@@ -454,27 +454,27 @@ function renderClean() {
       <div class="row">
         <label class="stack">Name<input id="zName" placeholder="Kitchen" data-enter="add-zone" style="width:170px"></label>
         <label class="stack">People<input id="zSlots" type="number" min="1" max="9" value="1" style="width:78px"></label>
-        <label class="stack">What it covers<input id="zTasks" placeholder="Counters, sink, bins" data-enter="add-zone" style="width:230px"></label>
+        <label class="stack">What it covers<input id="zTasks" placeholder="Counters, sink, etc." data-enter="add-zone" style="width:230px"></label>
         <button class="btn solid" data-action="add-zone">Add area</button>
       </div>
 
-      <h3 class="sub-h">Rota settings</h3>
+      <h3 class="sub-h">Rotation settings</h3>
       <div class="row">
-        <label class="stack">Who's on what
+        <label class="stack">Who's on What
           <select data-change="mode">
-            <option value="rotate" ${fixed ? "" : "selected"}>Rotates automatically</option>
+            <option value="rotate" ${fixed ? "" : "selected"}>Rotates Automatically</option>
             <option value="fixed"  ${fixed ? "selected" : ""}>I set it, stays put</option>
           </select>
         </label>
         ${fixed ? "" : `
-          <label class="stack">Rotate every
+          <label class="stack">Rotate Every
             <select data-change="cycle-len">
               <option value="7"  ${S.config.cycleDays == 7  ? "selected" : ""}>1 week</option>
               <option value="14" ${S.config.cycleDays == 14 ? "selected" : ""}>2 weeks</option>
               <option value="28" ${S.config.cycleDays == 28 ? "selected" : ""}>4 weeks</option>
             </select>
           </label>
-          <label class="stack">Rota started<input type="date" value="${S.config.anchor}" data-change="anchor"></label>`}
+          <label class="stack">Rotation Started<input type="date" value="${S.config.anchor}" data-change="anchor"></label>`}
       </div>
       <p class="locked">${fixed
         ? "Everyone stays on their area until you move them. Use Change who on any area."
@@ -502,7 +502,7 @@ function renderBook() {
     const count = S.bookings.filter(b => b.resource_id === ui.res && b.day === iso).length;
     return `<button data-action="pick-day" data-id="${iso}" aria-current="${iso === ui.day}">
       ${d.toLocaleDateString(undefined,{weekday:"short",timeZone:"UTC"})}<b>${d.getUTCDate()}</b>
-      ${count ? count + " booked" : "free"}</button>`;
+      ${count ? count + " booked" : "Free"}</button>`;
   }).join("");
 
   let grid = "";
@@ -545,7 +545,7 @@ function renderBook() {
         <label class="stack">Name<input id="rName" placeholder="Washing machine" data-enter="add-res" style="width:220px"></label>
         <button class="btn solid" data-action="add-res">Add</button>
       </div>`
-      : `<p class="locked">Book and cancel your own hours freely. Everyone else's slots are locked to you, and
+      : `<p class="locked">Book and cancel your own hours Freely. Everyone else's slots are locked to you, and
          only ${esc(managerName())} can change this list.</p>`}`;
 }
 
