@@ -1,0 +1,1028 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>House Board</title>
+
+<!-- Makes it behave like an installed app once it's on a real https:// address -->
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="House Board">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#e9ebf1">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --ink:#191b29; --slate:#666c82; --faint:#9aa0b3;
+    --line:#d5d9e4; --bg:#e9ebf1; --card:#fff;
+    --display:"Bricolage Grotesque","Trebuchet MS",sans-serif;
+    --body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+    --c0:#0f7c8a; --c1:#b0601d; --c2:#5b4bb7; --c3:#a83a5c; --c4:#2f7d4f; --c5:#2a5fa8; --c6:#8a6d1f; --c7:#37727e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:24px 18px 80px;background:var(--bg);color:var(--ink);
+       font-family:var(--body);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:900px;margin:0 auto}
+
+  /* header + identity */
+  .top{display:flex;flex-wrap:wrap;gap:12px 18px;align-items:flex-end;justify-content:space-between;margin-bottom:18px}
+  h1{font-family:var(--display);font-weight:800;font-size:30px;letter-spacing:-.02em;margin:0}
+  .sub{color:var(--slate);font-size:14px;margin:2px 0 0}
+  .ident{display:flex;align-items:center;gap:8px}
+
+  nav.tabs{display:flex;flex-wrap:wrap;gap:2px;border-bottom:1px solid var(--line);margin-bottom:22px}
+  nav.tabs button{
+    font:inherit;font-family:var(--display);font-weight:600;font-size:15px;color:var(--slate);
+    background:none;border:0;border-bottom:3px solid transparent;padding:9px 13px;margin-bottom:-1px;cursor:pointer;border-radius:6px 6px 0 0}
+  nav.tabs button:hover{color:var(--ink)}
+  nav.tabs button[aria-current="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+
+  h2.sec{font-family:var(--display);font-weight:700;font-size:19px;margin:0 0 3px}
+  .lede{color:var(--slate);font-size:14px;margin:0 0 16px}
+  h3.sub-h{font-family:var(--display);font-weight:700;font-size:15px;margin:30px 0 10px}
+
+  /* controls */
+  button.btn{font:inherit;font-size:14px;font-weight:600;padding:7px 13px;border-radius:9px;
+    border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+  button.btn:hover{border-color:var(--faint)}
+  button.btn.solid{background:var(--ink);color:#fff;border-color:var(--ink)}
+  button.btn.ghost{border-color:transparent;background:transparent;color:var(--slate);padding:6px 8px}
+  button.btn.ghost:hover{color:var(--ink)}
+  button.btn.tiny{font-size:12.5px;padding:4px 9px}
+  input,select,textarea{font:inherit;font-size:15px;padding:8px 11px;border:1px solid var(--line);
+    border-radius:9px;background:var(--card);color:var(--ink);min-width:0;max-width:100%}
+  textarea{resize:vertical;line-height:1.45}
+  label.stack{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--slate)}
+  .row{display:flex;flex-wrap:wrap;gap:9px;align-items:flex-end}
+  :focus-visible{outline:2.5px solid var(--ink);outline-offset:2px}
+
+  .banner{background:#fff5d8;border:1px solid #e6cf8a;border-radius:11px;padding:11px 14px;font-size:14.5px;margin-bottom:18px}
+  .empty{border:1px dashed var(--line);border-radius:12px;padding:22px;text-align:center;color:var(--slate);font-size:14.5px}
+
+  /* people chips */
+  .chip{display:inline-flex;align-items:center;gap:7px;font-weight:600;font-size:15px}
+  .badge{width:27px;height:27px;border-radius:50%;display:grid;place-items:center;color:#fff;
+    font-family:var(--display);font-size:12px;font-weight:700;flex:none}
+  .badge.sm{width:21px;height:21px;font-size:10px}
+
+  /* cleaning zones */
+  .zones{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+  .zone{position:relative;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 16px 14px 20px;overflow:hidden}
+  .zone::before{content:"";position:absolute;inset:0 auto 0 0;width:6px;background:var(--accent)}
+  .zone.done{background:var(--tint)}
+  .zone h3{font-family:var(--display);font-weight:700;font-size:19px;color:var(--accent);margin:0 0 2px;letter-spacing:-.01em}
+  .zone .tasks{color:var(--slate);font-size:13px;margin:0 0 12px}
+  .zone .people{display:flex;flex-wrap:wrap;gap:7px 16px;margin-bottom:14px}
+  .zone .foot{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .tick{display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:13px;font-weight:600;color:var(--slate);
+    background:transparent;border:1px solid var(--line);border-radius:999px;padding:4px 11px 4px 5px;cursor:pointer}
+  .tick .box{width:17px;height:17px;border-radius:5px;border:1.5px solid var(--line);display:grid;place-items:center;
+    color:#fff;font-size:11px;transition:background .15s}
+  .zone.done .tick{color:var(--accent);border-color:var(--accent)}
+  .zone.done .tick .box{background:var(--accent);border-color:var(--accent)}
+  .cyclebar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px}
+  .pill{font-family:var(--display);font-weight:700;font-size:14px;background:var(--ink);color:#fff;padding:5px 12px;border-radius:999px}
+
+  /* booking */
+  .restabs{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px}
+  .restabs button{font:inherit;font-size:14px;font-weight:600;padding:6px 13px;border-radius:999px;
+    border:1px solid var(--line);background:var(--card);color:var(--slate);cursor:pointer}
+  .restabs button[aria-current="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+  .days{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px}
+  .days button{font:inherit;flex:none;width:60px;padding:7px 0;border-radius:10px;border:1px solid var(--line);
+    background:var(--card);color:var(--slate);cursor:pointer;text-align:center;line-height:1.25}
+  .days button b{display:block;font-family:var(--display);font-size:16px;color:var(--ink)}
+  .days button[aria-current="true"]{background:var(--ink);border-color:var(--ink);color:#c9cede}
+  .days button[aria-current="true"] b{color:#fff}
+  .slots{background:var(--card);border:1px solid var(--line);border-radius:13px;overflow:hidden}
+  .slot{display:flex;align-items:center;gap:12px;padding:7px 13px;border-top:1px solid var(--line)}
+  .slot:first-child{border-top:0}
+  .slot .hr{width:52px;color:var(--faint);font-size:13px;font-variant-numeric:tabular-nums;flex:none}
+  .slot .who{flex:1;display:flex;align-items:center;gap:8px;min-width:0}
+  .slot.taken{background:var(--tint)}
+  .slot.mine{background:#eef1fb}
+
+  /* trips */
+  .trip{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px 16px;margin-bottom:11px}
+  .trip .head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 12px}
+  .trip .store{font-family:var(--display);font-weight:700;font-size:18px;margin:0}
+  .trip .when{color:var(--slate);font-size:14px}
+  .going{display:flex;flex-wrap:wrap;gap:6px;margin:11px 0}
+  .list{margin:12px 0 0;padding:0;list-style:none;border-top:1px solid var(--line)}
+  .list li{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--line);font-size:15px}
+  .list li.got{color:var(--faint);text-decoration:line-through}
+  .list input[type=checkbox]{width:17px;height:17px;accent-color:var(--ink);flex:none}
+  .list .by{color:var(--faint);font-size:12px;margin-left:auto;text-decoration:none}
+
+  /* noticeboard */
+  .post{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px 16px;margin-bottom:11px}
+  .post.resolved{opacity:.62}
+  .post .meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px;font-size:13px;color:var(--slate)}
+  .tag{font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;color:#fff}
+  .post .text{margin:0;white-space:pre-wrap}
+  .replies{margin:12px 0 0;padding:11px 0 0;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:9px}
+  .reply{font-size:14.5px}
+  .reply .rmeta{color:var(--faint);font-size:12.5px}
+  .filters{display:flex;gap:6px;margin:20px 0 12px}
+  .filters button{font:inherit;font-size:13px;font-weight:600;padding:5px 12px;border-radius:999px;
+    border:1px solid var(--line);background:var(--card);color:var(--slate);cursor:pointer}
+  .filters button[aria-current="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+
+  /* housemates */
+  .plist{display:flex;flex-direction:column;gap:8px;max-width:430px}
+  .prow{display:flex;align-items:center;gap:10px}
+  .prow input{flex:1}
+
+  #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:#fff;font-size:14px;padding:9px 16px;border-radius:999px;
+    opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:9}
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media (max-width:560px){
+    h1{font-size:25px}
+    .top{align-items:flex-start}
+    .slot .hr{width:46px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<style>
+  .role{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--ink);color:#fff}
+  .role.member{background:transparent;color:var(--slate);border:1px solid var(--line)}
+  .locked{color:var(--faint);font-size:13px;margin:14px 0 0;max-width:58ch}
+  .loading{color:var(--slate);text-align:center;padding:16vh 0;font-size:15px}
+
+  .pick{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 10px}
+  .pick button{font:inherit;font-size:13.5px;font-weight:600;padding:5px 11px;border-radius:999px;
+               border:1px solid var(--line);background:var(--card);color:var(--slate);cursor:pointer}
+  .pick button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+  .byhand{font-size:12px;color:var(--faint);margin:0 0 10px}
+
+  .unitname{color:var(--faint);font-weight:500;font-size:13px;margin-left:5px}
+
+  .pending{background:#fff5d8;border:1px solid #e6cf8a;border-radius:13px;padding:14px 16px;margin-bottom:11px}
+  .pending .who{font-family:var(--display);font-weight:700;font-size:17px}
+
+  .members{width:100%;border-collapse:collapse;font-size:14.5px}
+  .members th{text-align:left;font-size:12.5px;color:var(--slate);font-weight:600;padding:7px 8px}
+  .members td{padding:7px 8px;border-top:1px solid var(--line);vertical-align:middle}
+  .members input,.members select{font-size:14px;padding:6px 9px}
+  .members code{font-family:ui-monospace,Menlo,Consolas,monospace;background:#f1f3f8;
+                padding:3px 9px;border-radius:6px;letter-spacing:.12em}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .status{font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px}
+  .status.active{background:#e6f2ea;color:var(--c4)}
+  .status.blocked{background:#fbe9ee;color:var(--c3)}
+</style>
+
+<div class="wrap" id="app"><p class="loading">Opening the board…</p></div>
+<div id="toast" role="status"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>
+// ===========================================================================
+// Helpers
+// ===========================================================================
+const DAY = 86400000;
+const uid = () => Math.random().toString(36).slice(2, 9);
+const mod = (a, b) => ((a % b) + b) % b;
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+const PALETTE = ["--c0","--c1","--c2","--c3","--c4","--c5","--c6","--c7"];
+const col = i => `var(${PALETTE[mod(i, PALETTE.length)]})`;
+
+const isoOf = d => d.toISOString().slice(0, 10);
+const parseISO = s => { const [y,m,d] = s.split("-").map(Number); return new Date(Date.UTC(y, m-1, d)); };
+const todayUTC = () => { const n = new Date(); return new Date(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate())); };
+const addDays = (d, n) => { const c = new Date(d); c.setUTCDate(c.getUTCDate() + n); return c; };
+const mondayOf = d => addDays(d, -mod(d.getUTCDay() - 1, 7));
+const fmtDay = d => d.toLocaleDateString(undefined, { weekday:"short", day:"numeric", month:"short", timeZone:"UTC" });
+const fmtShort = d => d.toLocaleDateString(undefined, { day:"numeric", month:"short", timeZone:"UTC" });
+
+function ago(ts) {
+  const m = Math.round((Date.now() - ts) / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return m + "m ago";
+  if (m < 1440) return Math.round(m / 60) + "h ago";
+  const d = Math.round(m / 1440);
+  return d === 1 ? "yesterday" : d + "d ago";
+}
+
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("on"), 3400);
+}
+
+// ===========================================================================
+// State
+// ===========================================================================
+const S = {
+  config: { zones: [], resources: [], cycleDays: 14, mode: "rotate", assign: {},
+            anchor: isoOf(mondayOf(todayUTC())) },
+  progress: {},
+  trips: [],
+  notes: [],
+  bookings: [],
+  roster: []              // active members: {id, name, unit, is_manager}
+};
+
+let CODE = null, ME = null, IS_MANAGER = false, MEMBERS = null, UNITS = [];
+const ui = { tab:"clean", res:null, day:isoOf(todayUTC()), offset:0, filter:"open",
+             replyTo:null, editZone:null, focus:null };
+
+const SB = (SUPABASE_URL && SUPABASE_KEY && window.supabase)
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+const SHARED = !!SB;
+
+const mem = {};
+const local = {
+  get(k) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return mem[k] ?? null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { mem[k] = v; } },
+  del(k) { try { localStorage.removeItem(k); } catch (e) { delete mem[k]; } }
+};
+
+let lastWrite = 0;
+async function rpc(fn, args) {
+  const { data, error } = await SB.rpc(fn, args);
+  if (error) throw new Error(error.message.replace(/^.*?:\s*/, ""));
+  return data;
+}
+
+// ===========================================================================
+// Loading and saving
+// ===========================================================================
+function seedConfig() {
+  S.config.zones = [
+    { id: uid(), name:"Bathroom", slots:2, tasks:"Toilet, shower, sink, mirror, bin" },
+    { id: uid(), name:"Stairs",   slots:1, tasks:"Sweep, mop, handrail, landings" },
+    { id: uid(), name:"Floors",   slots:2, tasks:"Hoover and mop kitchen, hall, living room" }
+  ];
+  S.config.resources = ["Washing machine","Kitchen stove","Oven"].map(n => ({ id: uid(), name: n }));
+}
+
+async function loadAll() {
+  if (!SHARED) {
+    const saved = local.get("hb:solo");
+    if (saved) Object.assign(S, saved);
+    if (!S.config.zones.length) seedConfig();
+    if (!S.roster.length) S.roster = [{ id:"me", name:"Joseph", unit:"Master A", is_manager:true }];
+    ME = S.roster[0].id; IS_MANAGER = true;
+    if (!ui.res) ui.res = S.config.resources[0]?.id || null;
+    local.set("hb:solo", S);
+    return;
+  }
+
+  const [cfg, docs, bk, ros] = await Promise.all([
+    SB.from("config").select("data").eq("id", 1).maybeSingle(),
+    SB.from("docs").select("key,data"),
+    SB.from("bookings").select("id,resource_id,day,hour,person_id"),
+    SB.rpc("roster", { p_code: CODE })
+  ]);
+
+  if (cfg.error || docs.error || bk.error) { toast("Can't reach the board right now."); return; }
+
+  S.roster = ros.data || [];
+
+  const c = cfg.data?.data;
+  if (c && c.zones) Object.assign(S.config, c);
+  else if (IS_MANAGER) { seedConfig(); await saveConfig(); }
+
+  S.progress = {}; S.trips = []; S.notes = [];
+  (docs.data || []).forEach(r => {
+    if (r.key === "progress") S.progress = r.data || {};
+    if (r.key === "trips") S.trips = r.data?.list || [];
+    if (r.key === "notes") S.notes = r.data?.list || [];
+  });
+  S.bookings = bk.data || [];
+
+  if (!ui.res) ui.res = S.config.resources[0]?.id || null;
+}
+
+async function loadMembers() {
+  if (!SHARED || !IS_MANAGER) return;
+  try {
+    MEMBERS = await rpc("list_members", { p_code: CODE });
+    const { data } = await SB.from("units").select("name,sort").order("sort");
+    UNITS = data || [];
+  } catch (e) { MEMBERS = []; }
+}
+
+async function saveConfig() {
+  if (!SHARED) return local.set("hb:solo", S);
+  lastWrite = Date.now();
+  try { await rpc("save_config", { p_code: CODE, p_data: S.config }); }
+  catch (e) { toast(e.message); await loadAll(); render(); }
+}
+
+async function saveDoc(key) {
+  if (!SHARED) return local.set("hb:solo", S);
+  lastWrite = Date.now();
+  const payload = key === "progress" ? S.progress : { list: S[key] };
+  try { await rpc("save_doc", { p_code: CODE, p_key: key, p_data: payload }); }
+  catch (e) { toast(e.message); await loadAll(); render(); }
+}
+
+async function reloadBookings() {
+  if (!SHARED) return;
+  const { data } = await SB.from("bookings").select("id,resource_id,day,hour,person_id");
+  if (data) S.bookings = data;
+}
+
+function subscribe() {
+  if (!SB) return;
+  const bump = () => {
+    if (Date.now() - lastWrite < 1500) return;
+    if (/INPUT|TEXTAREA/.test(document.activeElement?.tagName || "")) {
+      return toast("Someone else changed the board — hit Refresh when you're done.");
+    }
+    loadAll().then(render);
+  };
+  SB.channel("house-board")
+    .on("postgres_changes", { event:"*", schema:"public", table:"config" }, bump)
+    .on("postgres_changes", { event:"*", schema:"public", table:"docs" }, bump)
+    .on("postgres_changes", { event:"*", schema:"public", table:"bookings" }, bump)
+    .subscribe();
+}
+
+// ===========================================================================
+// People
+// ===========================================================================
+const people = () => S.roster;
+const person = id => people().find(p => p.id === id);
+const pIndex = id => people().findIndex(p => p.id === id);
+const nameOf = id => (person(id) || {}).name || "Someone";
+const unitOf = id => (person(id) || {}).unit || "";
+const initials = n => n.trim().split(/\s+/).map(w => w[0] || "").join("").slice(0,2).toUpperCase() || "?";
+function chip(id, small) {
+  const i = pIndex(id);
+  return `<span class="chip"><span class="badge ${small ? "sm" : ""}" style="background:${col(i)}">${esc(initials(nameOf(id)))}</span>${esc(nameOf(id))}</span>`;
+}
+const managerName = () => (people().find(p => p.is_manager) || {}).name || "the manager";
+
+// ===========================================================================
+// Cleaning rota
+// ===========================================================================
+function slotList() {
+  const out = [];
+  S.config.zones.forEach(z => { for (let i = 0; i < z.slots; i++) out.push(z.id); });
+  return out;
+}
+const cycleIndex = () => Math.floor((todayUTC() - parseISO(S.config.anchor)) / (S.config.cycleDays * DAY));
+const cycleStart = n => addDays(parseISO(S.config.anchor), n * S.config.cycleDays);
+
+// Priority: fixed assignment → this cycle's override → the rotation.
+function assignFor(n) {
+  const out = {}, rot = {};
+  S.config.zones.forEach(z => { out[z.id] = []; rot[z.id] = []; });
+  if (people().length) {
+    slotList().forEach((zid, i) => rot[zid].push(people()[mod(i + n, people().length)].id));
+  }
+  const override = (S.config.assign || {})[n] || {};
+  S.config.zones.forEach(z => {
+    out[z.id] = S.config.mode === "fixed" ? (z.people || []).slice()
+              : override[z.id] ? override[z.id].slice()
+              : rot[z.id];
+    out[z.id] = out[z.id].filter(id => person(id));       // drop anyone who's moved out
+  });
+  return out;
+}
+
+function renderClean() {
+  const n = cycleIndex() + ui.offset;
+  const a = assignFor(n);
+  const done = S.progress[n] || {};
+  const start = cycleStart(n), end = addDays(cycleStart(n + 1), -1);
+  const daysLeft = Math.round((cycleStart(cycleIndex() + 1) - todayUTC()) / DAY);
+  const override = (S.config.assign || {})[n] || {};
+  const fixed = S.config.mode === "fixed";
+
+  const zones = S.config.zones.map((z, i) => {
+    const editing = IS_MANAGER && ui.editZone === z.id;
+    return `
+    <article class="zone ${done[z.id] ? "done" : ""}" style="--accent:${col(i)};--tint:${col(i)}12">
+      <h3>${esc(z.name)}</h3>
+      <p class="tasks">${z.tasks ? esc(z.tasks) : "&nbsp;"}</p>
+
+      ${editing ? `
+        <div class="pick">${people().map(p => `
+          <button data-action="toggle-person" data-id="${z.id}" data-id2="${p.id}"
+                  aria-pressed="${a[z.id].includes(p.id)}">${esc(p.name)}</button>`).join("")}</div>
+        <p class="byhand">${a[z.id].length} of ${z.slots} ${z.slots === 1 ? "spot" : "spots"} filled${
+          fixed ? "" : " · this cycle only"}</p>
+        <div class="foot">
+          <button class="btn tiny solid" data-action="edit-zone" data-id="${z.id}">Done</button>
+          ${!fixed && override[z.id]
+            ? `<button class="btn ghost tiny" data-action="clear-override" data-id="${z.id}">Back to rotation</button>` : ""}
+        </div>`
+      : `
+        <div class="people">${a[z.id].map(id => chip(id)).join("") || '<span class="tasks">Nobody assigned</span>'}</div>
+        ${override[z.id] && !fixed ? `<p class="byhand">Set by hand for this cycle</p>` : ""}
+        <div class="foot">
+          <button class="tick" data-action="tick" data-id="${z.id}">
+            <span class="box">✓</span>${done[z.id] ? "Cleaned" : "Mark cleaned"}
+          </button>
+          ${IS_MANAGER ? `<span>
+            <button class="btn ghost tiny" data-action="edit-zone" data-id="${z.id}">Change who</button>
+            <button class="btn ghost tiny" data-action="del-zone" data-id="${z.id}">Remove</button></span>` : ""}
+        </div>`}
+    </article>`; }).join("");
+
+  return `
+    <h2 class="sec">Cleaning rota</h2>
+    <p class="lede">Areas rotate automatically. Everyone moves along one place each cycle.</p>
+
+    <div class="cyclebar">
+      <button class="btn tiny" data-action="cyc" data-id="-1">←</button>
+      <span class="pill">${fmtShort(start)} – ${fmtShort(end)}</span>
+      <button class="btn tiny" data-action="cyc" data-id="1">→</button>
+      ${ui.offset === 0
+        ? `<span class="sub">Swaps in ${daysLeft} day${daysLeft === 1 ? "" : "s"}</span>`
+        : `<button class="btn ghost tiny" data-action="cyc" data-id="0">Back to now</button>`}
+    </div>
+
+    ${S.config.zones.length ? `<div class="zones">${zones}</div>` : `<p class="empty">No areas set up yet.</p>`}
+
+    ${IS_MANAGER ? `
+      <h3 class="sub-h">Add an area</h3>
+      <div class="row">
+        <label class="stack">Name<input id="zName" placeholder="Kitchen" data-enter="add-zone" style="width:170px"></label>
+        <label class="stack">People<input id="zSlots" type="number" min="1" max="9" value="1" style="width:78px"></label>
+        <label class="stack">What it covers<input id="zTasks" placeholder="Counters, sink, bins" data-enter="add-zone" style="width:230px"></label>
+        <button class="btn solid" data-action="add-zone">Add area</button>
+      </div>
+
+      <h3 class="sub-h">Rota settings</h3>
+      <div class="row">
+        <label class="stack">Who's on what
+          <select data-change="mode">
+            <option value="rotate" ${fixed ? "" : "selected"}>Rotates automatically</option>
+            <option value="fixed"  ${fixed ? "selected" : ""}>I set it, stays put</option>
+          </select>
+        </label>
+        ${fixed ? "" : `
+          <label class="stack">Rotate every
+            <select data-change="cycle-len">
+              <option value="7"  ${S.config.cycleDays == 7  ? "selected" : ""}>1 week</option>
+              <option value="14" ${S.config.cycleDays == 14 ? "selected" : ""}>2 weeks</option>
+              <option value="28" ${S.config.cycleDays == 28 ? "selected" : ""}>4 weeks</option>
+            </select>
+          </label>
+          <label class="stack">Rota started<input type="date" value="${S.config.anchor}" data-change="anchor"></label>`}
+      </div>
+      <p class="locked">${fixed
+        ? "Everyone stays on their area until you move them. Use Change who on any area."
+        : "Names rotate on their own. Use Change who to override a single cycle — handy when someone's away."}</p>`
+      : `<p class="locked">Anyone can tick an area off once it's done. Setting who's on what is up to ${esc(managerName())}.</p>`}`;
+}
+
+// ===========================================================================
+// Bookings
+// ===========================================================================
+const OPEN_HOUR = 6, CLOSE_HOUR = 24;
+const hourLabel = h => String(h).padStart(2, "0") + ":00";
+
+function renderBook() {
+  const res = S.config.resources;
+  const cur = res.find(r => r.id === ui.res) || res[0];
+  if (cur) ui.res = cur.id;
+
+  const tabs = res.map(r =>
+    `<button data-action="pick-res" data-id="${r.id}" aria-current="${r.id === ui.res}">${esc(r.name)}</button>`).join("");
+
+  const today = todayUTC();
+  const days = Array.from({ length: 14 }, (_, i) => addDays(today, i)).map(d => {
+    const iso = isoOf(d);
+    const count = S.bookings.filter(b => b.resource_id === ui.res && b.day === iso).length;
+    return `<button data-action="pick-day" data-id="${iso}" aria-current="${iso === ui.day}">
+      ${d.toLocaleDateString(undefined,{weekday:"short",timeZone:"UTC"})}<b>${d.getUTCDate()}</b>
+      ${count ? count + " booked" : "free"}</button>`;
+  }).join("");
+
+  let grid = "";
+  if (cur) {
+    const rows = [];
+    for (let h = OPEN_HOUR; h < CLOSE_HOUR; h++) {
+      const b = S.bookings.find(x => x.resource_id === cur.id && x.day === ui.day && x.hour === h);
+      if (!b) {
+        rows.push(`<div class="slot"><span class="hr">${hourLabel(h)}</span><span class="who"></span>
+          <button class="btn tiny" data-action="book" data-id="${h}">Book</button></div>`);
+      } else {
+        const mine = b.person_id === ME;
+        rows.push(`<div class="slot ${mine ? "mine" : "taken"}" style="--tint:${col(pIndex(b.person_id))}12">
+          <span class="hr">${hourLabel(h)}</span>
+          <span class="who">${chip(b.person_id, true)}<span class="unitname">${esc(unitOf(b.person_id))}</span></span>
+          ${mine || IS_MANAGER ? `<button class="btn ghost tiny" data-action="unbook" data-id="${b.id}">Cancel</button>` : ""}
+        </div>`);
+      }
+    }
+    grid = `<div class="slots">${rows.join("")}</div>`;
+  }
+
+  return `
+    <h2 class="sec">Bookings</h2>
+    <p class="lede">Claim an hour on anything the house shares. You can only cancel your own.</p>
+
+    <div class="restabs">${tabs}</div>
+
+    ${cur ? `
+      <div class="days">${days}</div>
+      <p class="sub" style="margin:0 0 10px">${esc(cur.name)} · ${fmtDay(parseISO(ui.day))}</p>
+      ${grid}
+      ${IS_MANAGER ? `<div class="row" style="margin-top:12px">
+        <button class="btn ghost tiny" data-action="del-res" data-id="${cur.id}">Remove ${esc(cur.name)}</button></div>` : ""}`
+      : `<p class="empty">Nothing set up to book yet.</p>`}
+
+    ${IS_MANAGER ? `
+      <h3 class="sub-h">Add something to book</h3>
+      <div class="row">
+        <label class="stack">Name<input id="rName" placeholder="Washing machine" data-enter="add-res" style="width:220px"></label>
+        <button class="btn solid" data-action="add-res">Add</button>
+      </div>`
+      : `<p class="locked">Book and cancel your own hours freely. Everyone else's slots are locked to you, and
+         only ${esc(managerName())} can change this list.</p>`}`;
+}
+
+// ===========================================================================
+// Grocery runs
+// ===========================================================================
+function renderShop() {
+  const todayIso = isoOf(todayUTC());
+  const upcoming = S.trips.filter(t => t.date >= todayIso).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  const past = S.trips.length - upcoming.length;
+
+  const cards = upcoming.map(t => {
+    const going = t.going.map(id => chip(id, true)).join("") || `<span class="sub">Nobody signed up yet</span>`;
+    const items = t.items.map(it => `
+      <li class="${it.got ? "got" : ""}">
+        <input type="checkbox" ${it.got ? "checked" : ""} data-change="item" data-id="${t.id}" data-id2="${it.id}" aria-label="${esc(it.text)}">
+        <span>${esc(it.text)}</span>
+        <span class="by">${esc(nameOf(it.by))}</span>
+      </li>`).join("");
+    return `
+      <article class="trip">
+        <div class="head">
+          <h3 class="store">${esc(t.store)}</h3>
+          <span class="when">${fmtDay(parseISO(t.date))}${t.time ? " · " + esc(t.time) : ""}</span>
+        </div>
+        ${t.note ? `<p class="sub" style="margin:4px 0 0">${esc(t.note)}</p>` : ""}
+        <div class="going">${going}</div>
+        <div class="row">
+          <button class="btn ${t.going.includes(ME) ? "" : "solid"}" data-action="join" data-id="${t.id}">
+            ${t.going.includes(ME) ? "I can't make it" : "I'm coming"}</button>
+          ${t.by === ME || IS_MANAGER ? `<button class="btn ghost tiny" data-action="del-trip" data-id="${t.id}">Cancel run</button>` : ""}
+        </div>
+        ${items ? `<ul class="list">${items}</ul>` : ""}
+        <div class="row" style="margin-top:11px">
+          <input id="item-${t.id}" placeholder="Add to the list — milk, bin bags…" data-enter="add-item" data-id="${t.id}" style="flex:1;min-width:180px">
+          <button class="btn" data-action="add-item" data-id="${t.id}">Add</button>
+        </div>
+      </article>`;
+  }).join("");
+
+  return `
+    <h2 class="sec">Grocery runs</h2>
+    <p class="lede">Say when you're going, see who's coming, and let people add what they need.</p>
+
+    <h3 class="sub-h" style="margin-top:0">Plan a run</h3>
+    <div class="row" style="margin-bottom:26px">
+      <label class="stack">Where<input id="tStore" placeholder="No Frills" data-enter="add-trip" style="width:170px"></label>
+      <label class="stack">Day<input id="tDate" type="date" value="${todayIso}"></label>
+      <label class="stack">Time<input id="tTime" type="time" value="17:00"></label>
+      <label class="stack">Note<input id="tNote" placeholder="Taking the car, 3 spare seats" data-enter="add-trip" style="width:210px"></label>
+      <button class="btn solid" data-action="add-trip">Post the run</button>
+    </div>
+
+    ${cards || `<p class="empty">No runs planned. Post one above and the house can pile in.</p>`}
+    ${past && IS_MANAGER ? `<div class="row" style="margin-top:16px">
+      <button class="btn ghost tiny" data-action="clear-past">Clear ${past} past run${past === 1 ? "" : "s"}</button></div>` : ""}`;
+}
+
+// ===========================================================================
+// Noticeboard
+// ===========================================================================
+const TAGS = {
+  todo:    { label:"Needs doing", color:"var(--c1)" },
+  concern: { label:"Concern",     color:"var(--c3)" },
+  money:   { label:"Money",       color:"var(--c4)" },
+  note:    { label:"Note",        color:"var(--c5)" }
+};
+
+function renderBoard() {
+  const posts = S.notes
+    .filter(p => ui.filter === "all" || (ui.filter === "open" ? !p.resolved : p.resolved))
+    .sort((a, b) => b.ts - a.ts);
+
+  const cards = posts.map(p => {
+    const t = TAGS[p.tag] || TAGS.note;
+    const replies = p.replies.map(r => `
+      <div class="reply"><span class="rmeta">${esc(nameOf(r.by))} · ${ago(r.ts)}</span><br>${esc(r.text)}</div>`).join("");
+    return `
+      <article class="post ${p.resolved ? "resolved" : ""}">
+        <div class="meta">
+          <span class="tag" style="background:${t.color}">${t.label}</span>
+          ${chip(p.by, true)}
+          <span>${ago(p.ts)}</span>
+        </div>
+        <p class="text">${esc(p.text)}</p>
+        ${replies ? `<div class="replies">${replies}</div>` : ""}
+        ${ui.replyTo === p.id ? `
+          <div class="row" style="margin-top:11px">
+            <input id="reply-${p.id}" placeholder="Reply…" data-enter="send-reply" data-id="${p.id}" style="flex:1;min-width:180px">
+            <button class="btn solid" data-action="send-reply" data-id="${p.id}">Send</button>
+          </div>` : ""}
+        <div class="row" style="margin-top:11px">
+          <button class="btn ghost tiny" data-action="reply" data-id="${p.id}">Reply</button>
+          <button class="btn ghost tiny" data-action="resolve" data-id="${p.id}">${p.resolved ? "Reopen" : "Mark sorted"}</button>
+          ${p.by === ME || IS_MANAGER ? `<button class="btn ghost tiny" data-action="del-post" data-id="${p.id}">Delete</button>` : ""}
+        </div>
+      </article>`;
+  }).join("");
+
+  return `
+    <h2 class="sec">Noticeboard</h2>
+    <p class="lede">Anything the house should know: jobs to sort, things that are bugging you, bills, plans.</p>
+
+    <div class="row" style="align-items:stretch">
+      <textarea id="postText" rows="3" placeholder="The shower drain is blocked again…" style="flex:1;min-width:240px"></textarea>
+    </div>
+    <div class="row" style="margin-top:9px">
+      <label class="stack">Kind<select id="postTag">
+        ${Object.entries(TAGS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join("")}
+      </select></label>
+      <button class="btn solid" data-action="post">Post to the board</button>
+    </div>
+
+    <div class="filters">
+      ${["open","resolved","all"].map(f =>
+        `<button data-action="filter" data-id="${f}" aria-current="${ui.filter === f}">${
+          f === "open" ? "Open" : f === "resolved" ? "Sorted" : "Everything"}</button>`).join("")}
+    </div>
+
+    ${cards || `<p class="empty">Nothing on the board.</p>`}`;
+}
+
+// ===========================================================================
+// Housemates
+// ===========================================================================
+function renderHouse() {
+  if (!IS_MANAGER) {
+    return `
+      <h2 class="sec">Housemates</h2>
+      <p class="lede">Everyone living at ${esc(HOUSE_NAME)}.</p>
+      <div class="plist">${people().map((p, i) => `
+        <div class="prow">
+          <span class="badge" style="background:${col(i)}">${esc(initials(p.name))}</span>
+          <span style="flex:1">${esc(p.name)}<span class="unitname">${esc(p.unit)}</span>${p.id === ME ? " · you" : ""}</span>
+        </div>`).join("")}</div>
+      <p class="locked">Only ${esc(managerName())} can add or remove people. If your name or unit is wrong, ask them.</p>
+      <div class="row" style="margin-top:20px"><button class="btn ghost tiny" data-action="signout">Sign out</button></div>`;
+  }
+
+  if (!MEMBERS) return `<h2 class="sec">Housemates</h2><p class="sub">Loading…</p>`;
+
+  const pending = MEMBERS.filter(m => m.status === "pending");
+  const rest = MEMBERS.filter(m => m.status !== "pending");
+  const unitOpts = sel => UNITS.map(u =>
+    `<option ${u.name === sel ? "selected" : ""}>${esc(u.name)}</option>`).join("");
+
+  const pendingCards = pending.map(m => `
+    <div class="pending">
+      <p style="margin:0 0 4px"><span class="who">${esc(m.name)}</span>
+        <span class="unitname">${esc(m.unit)}</span></p>
+      <p class="sub" style="margin:0 0 11px">Registered ${ago(new Date(m.created_at).getTime())} · code <code>${esc(m.code)}</code></p>
+      <div class="row">
+        <button class="btn solid tiny" data-action="approve" data-id="${m.id}">Let them in</button>
+        <button class="btn ghost tiny" data-action="remove-member" data-id="${m.id}">Not one of ours</button>
+      </div>
+    </div>`).join("");
+
+  const rows = rest.map(m => `
+    <tr>
+      <td><input value="${esc(m.name)}" data-change="m-name" data-id="${m.id}" style="width:125px" aria-label="Name"></td>
+      <td><select data-change="m-unit" data-id="${m.id}" aria-label="Unit">${unitOpts(m.unit)}</select></td>
+      <td><input value="${esc(m.code)}" data-change="m-code" data-id="${m.id}" inputmode="numeric"
+                 maxlength="4" style="width:70px" aria-label="Code"></td>
+      <td><span class="status ${m.status}">${m.status}</span>${m.is_manager ? ` <span class="role">manager</span>` : ""}</td>
+      <td style="white-space:nowrap">
+        ${m.id === ME ? `<span class="sub">that's you</span>` : `
+          <button class="btn ghost tiny" data-action="toggle-block" data-id="${m.id}" data-id2="${m.status}">
+            ${m.status === "blocked" ? "Restore" : "Block"}</button>
+          <button class="btn ghost tiny" data-action="remove-member" data-id="${m.id}">Remove</button>`}
+      </td>
+    </tr>`).join("");
+
+  return `
+    <h2 class="sec">Housemates</h2>
+    <p class="lede">People register themselves at ${esc(HOUSE_NAME)}; you decide who gets in.</p>
+
+    ${pending.length ? `<h3 class="sub-h" style="margin-top:0">Waiting for you (${pending.length})</h3>${pendingCards}`
+      : `<p class="sub" style="margin-top:0">No one waiting to be approved.</p>`}
+
+    <h3 class="sub-h">Everyone else</h3>
+    <div class="scroll"><table class="members">
+      <thead><tr><th>Name</th><th>Unit</th><th>Code</th><th>Status</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    <p class="locked">Edit a name, unit or code and it saves as you leave the field. Blocking keeps someone's
+      history but stops them signing in; removing deletes them and their bookings.</p>
+
+    <h3 class="sub-h">Units</h3>
+    <div class="row">
+      ${UNITS.map(u => `<span class="chip" style="font-size:14px">${esc(u.name)}
+        <button class="btn ghost tiny" data-action="del-unit" data-id="${esc(u.name)}">×</button></span>`).join("")}
+    </div>
+    <div class="row" style="margin-top:10px">
+      <input id="uName" placeholder="Basement B" data-enter="add-unit" style="width:170px">
+      <button class="btn" data-action="add-unit">Add unit</button>
+    </div>
+
+    <h3 class="sub-h">Who can do what</h3>
+    <p class="sub" style="max-width:60ch">You alone can approve people, change codes, add or remove areas,
+      bookable things and units, and set who's on which cleaning area. Everyone else can tick areas off, book
+      and cancel their own hours, plan grocery runs and post to the board. The database enforces this — a
+      housemate poking at the page code still can't touch anyone else's slot.</p>
+
+    <div class="row" style="margin-top:18px">
+      <button class="btn ghost tiny" data-action="signout">Sign out</button>
+    </div>`;
+}
+
+// ===========================================================================
+// Render
+// ===========================================================================
+const TABS = [
+  ["clean","Cleaning"], ["book","Bookings"], ["shop","Grocery runs"], ["board","Noticeboard"], ["house","Housemates"]
+];
+
+function render() {
+  const body = { clean: renderClean, book: renderBook, shop: renderShop, board: renderBoard, house: renderHouse }[ui.tab]();
+  const waiting = IS_MANAGER && MEMBERS ? MEMBERS.filter(m => m.status === "pending").length : 0;
+
+  document.getElementById("app").innerHTML = `
+    <header class="top">
+      <div>
+        <h1>House Board</h1>
+        <p class="sub">${SHARED
+          ? `${esc(HOUSE_NAME)} · ${esc(nameOf(ME))} <span class="role ${IS_MANAGER ? "" : "member"}">${IS_MANAGER ? "manager" : esc(unitOf(ME))}</span>`
+          : "Saved on this device only — add your Supabase keys to config.js to share it"}</p>
+      </div>
+      <div class="ident"><button class="btn ghost" data-action="refresh">Refresh</button></div>
+    </header>
+    <nav class="tabs">${TABS.map(([id, label]) =>
+      `<button data-action="tab" data-id="${id}" aria-current="${ui.tab === id}">${label}${
+        id === "house" && waiting ? ` (${waiting})` : ""}</button>`).join("")}</nav>
+    <main>${body}</main>`;
+
+  if (ui.focus) { const el = document.getElementById(ui.focus); if (el) el.focus(); ui.focus = null; }
+}
+
+const val = id => (document.getElementById(id) || {}).value?.trim() || "";
+
+// ===========================================================================
+// Actions
+// ===========================================================================
+const actions = {
+  tab: (el, id) => { ui.tab = id; ui.replyTo = null; ui.editZone = null; render(); },
+  refresh: async () => { await loadAll(); await loadMembers(); render(); toast("Board refreshed."); },
+  signout: () => { local.del("hb:code"); location.replace("login.html"); },
+
+  // --- cleaning ---
+  cyc: (el, id) => { ui.offset = id === "0" ? 0 : ui.offset + Number(id); render(); },
+  tick: (el, id) => {
+    const n = cycleIndex() + ui.offset;
+    const c = S.progress[n] || (S.progress[n] = {});
+    c[id] = !c[id]; saveDoc("progress"); render();
+  },
+  "edit-zone": (el, id) => { ui.editZone = ui.editZone === id ? null : id; render(); },
+  "toggle-person": (el, id) => {
+    const pid = el.dataset.id2;
+    const z = S.config.zones.find(x => x.id === id);
+    if (!z) return;
+    let list;
+    if (S.config.mode === "fixed") {
+      if (!z.people) z.people = assignFor(cycleIndex())[z.id].slice();
+      list = z.people;
+    } else {
+      const n = cycleIndex() + ui.offset;
+      S.config.assign = S.config.assign || {};
+      const c = S.config.assign[n] = S.config.assign[n] || {};
+      if (!c[id]) c[id] = assignFor(n)[id].slice();
+      list = c[id];
+    }
+    const at = list.indexOf(pid);
+    if (at >= 0) list.splice(at, 1);
+    else { if (list.length >= z.slots) list.shift(); list.push(pid); }
+    saveConfig(); render();
+  },
+  "clear-override": (el, id) => {
+    const n = cycleIndex() + ui.offset;
+    const c = (S.config.assign || {})[n];
+    if (c) { delete c[id]; if (!Object.keys(c).length) delete S.config.assign[n]; }
+    saveConfig(); render();
+  },
+  "add-zone": () => {
+    const name = val("zName"); if (!name) return toast("Give the area a name.");
+    S.config.zones.push({ id: uid(), name, slots: Math.max(1, Number(val("zSlots")) || 1), tasks: val("zTasks") });
+    saveConfig(); ui.focus = "zName"; render();
+  },
+  "del-zone": (el, id) => {
+    S.config.zones = S.config.zones.filter(z => z.id !== id);
+    saveConfig(); render();
+  },
+
+  // --- bookings ---
+  "pick-res": (el, id) => { ui.res = id; render(); },
+  "pick-day": (el, id) => { ui.day = id; render(); },
+  book: async (el, id) => {
+    const hour = Number(id);
+    if (!SHARED) {
+      S.bookings.push({ id: uid(), resource_id: ui.res, day: ui.day, hour, person_id: ME });
+      local.set("hb:solo", S); return render();
+    }
+    lastWrite = Date.now();
+    try { await rpc("book", { p_code: CODE, p_resource: ui.res, p_day: ui.day, p_hour: hour }); }
+    catch (e) { toast(e.message); }
+    await reloadBookings(); render();
+  },
+  unbook: async (el, id) => {
+    if (!SHARED) {
+      S.bookings = S.bookings.filter(b => b.id !== id);
+      local.set("hb:solo", S); return render();
+    }
+    lastWrite = Date.now();
+    try { await rpc("unbook", { p_code: CODE, p_id: id }); }
+    catch (e) { toast(e.message); }
+    await reloadBookings(); render();
+  },
+  "add-res": () => {
+    const name = val("rName"); if (!name) return toast("Give it a name.");
+    const r = { id: uid(), name };
+    S.config.resources.push(r); ui.res = r.id; saveConfig(); ui.focus = "rName"; render();
+  },
+  "del-res": (el, id) => {
+    S.config.resources = S.config.resources.filter(r => r.id !== id);
+    ui.res = S.config.resources[0]?.id || null;
+    saveConfig(); render();
+  },
+
+  // --- grocery runs ---
+  "add-trip": () => {
+    const store = val("tStore"); if (!store) return toast("Where are you going?");
+    S.trips.push({ id: uid(), store, date: val("tDate") || isoOf(todayUTC()), time: val("tTime"),
+                   note: val("tNote"), by: ME, going: [ME], items: [] });
+    saveDoc("trips"); render();
+  },
+  join: (el, id) => {
+    const t = S.trips.find(x => x.id === id); if (!t) return;
+    t.going = t.going.includes(ME) ? t.going.filter(p => p !== ME) : [...t.going, ME];
+    saveDoc("trips"); render();
+  },
+  "add-item": (el, id) => {
+    const text = val("item-" + id); if (!text) return;
+    S.trips.find(t => t.id === id).items.push({ id: uid(), text, by: ME, got: false });
+    saveDoc("trips"); ui.focus = "item-" + id; render();
+  },
+  "del-trip": (el, id) => {
+    const t = S.trips.find(x => x.id === id);
+    if (!t || (t.by !== ME && !IS_MANAGER)) return toast("That's not your run to cancel.");
+    S.trips = S.trips.filter(x => x.id !== id); saveDoc("trips"); render();
+  },
+  "clear-past": () => {
+    const todayIso = isoOf(todayUTC());
+    S.trips = S.trips.filter(t => t.date >= todayIso); saveDoc("trips"); render();
+  },
+
+  // --- noticeboard ---
+  post: () => {
+    const text = val("postText"); if (!text) return toast("Write something first.");
+    S.notes.push({ id: uid(), text, tag: val("postTag") || "note", by: ME, ts: Date.now(), resolved: false, replies: [] });
+    saveDoc("notes"); render();
+  },
+  reply: (el, id) => { ui.replyTo = ui.replyTo === id ? null : id; ui.focus = "reply-" + id; render(); },
+  "send-reply": (el, id) => {
+    const text = val("reply-" + id); if (!text) return;
+    S.notes.find(p => p.id === id).replies.push({ id: uid(), text, by: ME, ts: Date.now() });
+    ui.replyTo = null; saveDoc("notes"); render();
+  },
+  resolve: (el, id) => {
+    const p = S.notes.find(x => x.id === id); p.resolved = !p.resolved; saveDoc("notes"); render();
+  },
+  "del-post": (el, id) => {
+    const p = S.notes.find(x => x.id === id);
+    if (!p || (p.by !== ME && !IS_MANAGER)) return toast("You can only delete your own posts.");
+    S.notes = S.notes.filter(x => x.id !== id); saveDoc("notes"); render();
+  },
+  filter: (el, id) => { ui.filter = id; render(); },
+
+  // --- members (manager only) ---
+  approve: async (el, id) => {
+    await member(id, { p_status: "active" });
+    await loadAll(); render(); toast("They're in.");
+  },
+  "toggle-block": async (el, id) => {
+    await member(id, { p_status: el.dataset.id2 === "blocked" ? "active" : "blocked" });
+    await loadAll(); render();
+  },
+  "remove-member": async (el, id) => {
+    try { await rpc("remove_member", { p_code: CODE, p_id: id }); }
+    catch (e) { return toast(e.message); }
+    await loadMembers(); await loadAll(); await reloadBookings(); render();
+  },
+  "add-unit": async () => {
+    const name = val("uName"); if (!name) return;
+    try { await rpc("set_unit", { p_code: CODE, p_name: name, p_sort: 99 }); }
+    catch (e) { return toast(e.message); }
+    await loadMembers(); ui.focus = "uName"; render();
+  },
+  "del-unit": async (el, id) => {
+    try { await rpc("drop_unit", { p_code: CODE, p_name: id }); }
+    catch (e) { return toast(e.message); }
+    await loadMembers(); render();
+  }
+};
+
+async function member(id, fields) {
+  try { await rpc("set_member", Object.assign({ p_code: CODE, p_id: id }, fields)); await loadMembers(); }
+  catch (e) { toast(e.message); await loadMembers(); render(); }
+}
+
+const changers = {
+  mode: el => {
+    const cur = assignFor(cycleIndex() + ui.offset);
+    if (el.value === "fixed") {
+      S.config.zones.forEach(z => { if (!z.people || !z.people.length) z.people = cur[z.id].slice(); });
+    }
+    S.config.mode = el.value; saveConfig(); render();
+  },
+  "cycle-len": el => { S.config.cycleDays = Number(el.value); saveConfig(); render(); },
+  anchor: el => {
+    if (!el.value) return render();
+    S.config.anchor = isoOf(mondayOf(parseISO(el.value)));
+    S.progress = {};
+    saveConfig(); saveDoc("progress"); render();
+  },
+  item: el => {
+    const t = S.trips.find(x => x.id === el.dataset.id);
+    const it = t.items.find(x => x.id === el.dataset.id2);
+    it.got = el.checked; saveDoc("trips"); render();
+  },
+  "m-name": async el => { await member(el.dataset.id, { p_name: el.value.trim() }); await loadAll(); render(); },
+  "m-unit": async el => { await member(el.dataset.id, { p_unit: el.value }); await loadAll(); render(); },
+  "m-code": async el => {
+    const code = el.value.replace(/\D/g, "").slice(0, 4);
+    if (code.length !== 4) { toast("Codes must be exactly 4 digits."); return render(); }
+    await member(el.dataset.id, { p_new_code: code }); render();
+  }
+};
+
+document.addEventListener("click", e => {
+  const el = e.target.closest("[data-action]");
+  if (el && actions[el.dataset.action]) actions[el.dataset.action](el, el.dataset.id);
+});
+document.addEventListener("change", e => {
+  const el = e.target.closest("[data-change]");
+  if (el && changers[el.dataset.change]) changers[el.dataset.change](el);
+});
+document.addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  const el = e.target.closest("[data-enter]");
+  if (el && actions[el.dataset.enter]) { e.preventDefault(); actions[el.dataset.enter](el, el.dataset.id); }
+});
+
+// ===========================================================================
+// Start — the login page owns sign-in; this page just checks and redirects
+// ===========================================================================
+(async function start() {
+  if (!SHARED) { await loadAll(); return render(); }
+
+  const saved = local.get("hb:code");
+  if (!saved) return location.replace("login.html");
+
+  try {
+    const rows = await rpc("sign_in", { p_code: saved });
+    const who = rows && rows[0];
+    if (!who || who.status !== "active") { local.del("hb:code"); return location.replace("login.html"); }
+    CODE = saved; ME = who.id; IS_MANAGER = who.is_manager;
+  } catch (e) {
+    document.getElementById("app").innerHTML =
+      `<p class="loading">Can't reach the board. Check your connection and reload.</p>`;
+    return;
+  }
+
+  await loadAll();
+  await loadMembers();
+  render();
+  subscribe();
+})();
+
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+</script>

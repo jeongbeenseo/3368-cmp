@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in — House Board</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="House Board">
+<meta name="theme-color" content="#e9ebf1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --ink:#191b29; --slate:#666c82; --faint:#9aa0b3;
+    --line:#d5d9e4; --bg:#e9ebf1; --card:#fff;
+    --c0:#0f7c8a; --c3:#a83a5c; --c4:#2f7d4f;
+    --display:"Bricolage Grotesque","Trebuchet MS",sans-serif;
+    --body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:34px 20px 60px;background:var(--bg);color:var(--ink);
+       font-family:var(--body);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;
+       display:flex;align-items:flex-start;justify-content:center;min-height:100vh}
+  .card{width:100%;max-width:400px;background:var(--card);border:1px solid var(--line);
+        border-radius:18px;padding:30px 26px 26px;margin-top:6vh}
+
+  .address{font-family:var(--display);font-weight:800;font-size:27px;letter-spacing:-.025em;
+           line-height:1.12;margin:0}
+  .address span{display:block;color:var(--c0)}
+  .tag{color:var(--slate);font-size:14px;margin:8px 0 26px}
+
+  h2{font-family:var(--display);font-weight:700;font-size:18px;margin:0 0 4px}
+  .hint{color:var(--slate);font-size:13.5px;margin:0 0 18px}
+
+  button.big{width:100%;font:inherit;font-family:var(--display);font-weight:700;font-size:16px;
+    padding:14px;border-radius:12px;border:1px solid var(--ink);background:var(--ink);color:#fff;
+    cursor:pointer;margin-bottom:10px}
+  button.big.alt{background:transparent;color:var(--ink)}
+  button.big:hover{opacity:.9}
+
+  label{display:block;font-size:12.5px;color:var(--slate);margin:0 0 5px}
+  .field{margin-bottom:15px}
+  input,select{width:100%;font:inherit;font-size:16px;padding:11px 12px;border:1px solid var(--line);
+    border-radius:10px;background:var(--card);color:var(--ink)}
+  input.pin{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:30px;letter-spacing:.55em;
+    text-align:center;padding:14px 12px 14px 24px}
+  :focus-visible{outline:2.5px solid var(--ink);outline-offset:2px}
+
+  .msg{font-size:14px;border-radius:10px;padding:11px 13px;margin:0 0 16px}
+  .msg.bad{background:#fbe9ee;color:var(--c3)}
+  .msg.good{background:#e6f2ea;color:var(--c4)}
+  .msg.wait{background:#fff5d8;color:#8a6d1f}
+
+  .back{background:none;border:0;font:inherit;font-size:13.5px;color:var(--slate);
+        cursor:pointer;padding:8px 0;text-decoration:underline}
+  .foot{color:var(--faint);font-size:12.5px;margin:20px 0 0;text-align:center}
+</style>
+
+<div class="card" id="card"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>
+const SB = (SUPABASE_URL && SUPABASE_KEY && window.supabase)
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+const card = () => document.getElementById("card");
+const el = id => document.getElementById(id);
+
+async function rpc(fn, args) {
+  const { data, error } = await SB.rpc(fn, args);
+  if (error) throw new Error(error.message.replace(/^.*?:\s*/, ""));
+  return data;
+}
+
+const [line1, line2] = (() => {
+  const parts = HOUSE_NAME.split(" ");
+  return [parts[0], parts.slice(1).join(" ")];
+})();
+
+const header = `
+  <h1 class="address">${esc(line1)}<span>${esc(line2)}</span></h1>
+  <p class="tag">Cleaning, bookings and everything else for the house.</p>`;
+
+// ---------------------------------------------------------------------------
+function showChoice(msg) {
+  card().innerHTML = header + (msg || "") + `
+    <button class="big" data-go="login">Log in</button>
+    <button class="big alt" data-go="register">Register</button>
+    <p class="foot">New here? Register, then the house manager lets you in.</p>`;
+}
+
+function showLogin(msg) {
+  card().innerHTML = header + `
+    <h2>Log in</h2>
+    <p class="hint">Type the 4-digit code you chose.</p>
+    ${msg || ""}
+    <div class="field">
+      <input id="pin" class="pin" inputmode="numeric" pattern="[0-9]*" maxlength="4"
+             autocomplete="off" aria-label="Your 4-digit code">
+    </div>
+    <button class="big" data-do="login">Open the board</button>
+    <button class="back" data-go="choice">Back</button>`;
+  const pin = el("pin");
+  pin.focus();
+  pin.addEventListener("input", () => {
+    pin.value = pin.value.replace(/\D/g, "").slice(0, 4);
+    if (pin.value.length === 4) doLogin();
+  });
+  pin.addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
+}
+
+async function showRegister(msg) {
+  let units = [];
+  try { const { data } = await SB.from("units").select("name,sort").order("sort"); units = data || []; }
+  catch (e) { units = []; }
+
+  card().innerHTML = header + `
+    <h2>Register</h2>
+    <p class="hint">Pick your own 4-digit code. The manager approves you before you can get in.</p>
+    ${msg || ""}
+    <div class="field">
+      <label for="rName">Your name</label>
+      <input id="rName" autocomplete="name" placeholder="Alex Chen">
+    </div>
+    <div class="field">
+      <label for="rUnit">Your unit</label>
+      <select id="rUnit">${units.map(u => `<option>${esc(u.name)}</option>`).join("")}</select>
+    </div>
+    <div class="field">
+      <label for="rCode">Choose a 4-digit code</label>
+      <input id="rCode" class="pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off">
+    </div>
+    <button class="big" data-do="register">Send to the manager</button>
+    <button class="back" data-go="choice">Back</button>`;
+  el("rName").focus();
+  el("rCode").addEventListener("input", e => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 4); });
+}
+
+// ---------------------------------------------------------------------------
+async function doLogin() {
+  const code = (el("pin").value || "").trim();
+  if (code.length !== 4) return;
+  el("pin").disabled = true;
+  try {
+    const rows = await rpc("sign_in", { p_code: code });
+    const who = rows && rows[0];
+    if (!who) return showLogin(`<p class="msg bad">That code isn't recognised. Check it, or register first.</p>`);
+    if (who.status === "pending")
+      return showLogin(`<p class="msg wait">You're registered — the manager hasn't approved you yet.</p>`);
+    if (who.status === "blocked")
+      return showLogin(`<p class="msg bad">Your access to this board was removed.</p>`);
+
+    localStorage.setItem("hb:code", JSON.stringify(code));
+    location.replace("index.html");
+  } catch (e) {
+    showLogin(`<p class="msg bad">${esc(e.message)}</p>`);
+  }
+}
+
+async function doRegister() {
+  const name = el("rName").value.trim();
+  const unit = el("rUnit").value;
+  const code = el("rCode").value.trim();
+  if (!name) return showRegister(`<p class="msg bad">Your name is needed.</p>`);
+  if (code.length !== 4) return showRegister(`<p class="msg bad">Your code must be exactly 4 digits.</p>`);
+  try {
+    await rpc("register", { p_name: name, p_unit: unit, p_code: code });
+    card().innerHTML = header + `
+      <p class="msg good">Thanks ${esc(name.split(" ")[0])} — you're on the list for ${esc(unit)}.
+        The manager will approve you shortly. Come back and log in with your code then.</p>
+      <button class="big" data-go="login">Log in</button>`;
+  } catch (e) {
+    showRegister(`<p class="msg bad">${esc(e.message)}</p>`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-go],[data-do]");
+  if (!b) return;
+  const go = b.dataset.go, act = b.dataset.do;
+  if (go === "choice") showChoice();
+  if (go === "login") showLogin();
+  if (go === "register") showRegister();
+  if (act === "login") doLogin();
+  if (act === "register") doRegister();
+});
+
+// ---------------------------------------------------------------------------
+(async function start() {
+  if (!SB) {
+    card().innerHTML = header + `
+      <p class="msg wait">No database connected yet, so there's nothing to log into.
+        Add your Supabase keys to <b>config.js</b> — see SETUP.md.</p>
+      <button class="big alt" onclick="location.href='index.html'">Open the board anyway</button>
+      <p class="foot">Without a database the board saves to this device only.</p>`;
+    return;
+  }
+  // already signed in? go straight through
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem("hb:code") || "null"); } catch (e) {}
+  if (saved) {
+    try {
+      const rows = await rpc("sign_in", { p_code: saved });
+      if (rows && rows[0] && rows[0].status === "active") return location.replace("index.html");
+      localStorage.removeItem("hb:code");
+    } catch (e) { /* offline — fall through to the buttons */ }
+  }
+  showChoice();
+})();
+
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+</script>
