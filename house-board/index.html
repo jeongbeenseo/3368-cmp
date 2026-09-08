@@ -181,13 +181,20 @@
   /* --- Calendar tab ------------------------------------------------ */
   .calhead{display:flex;align-items:center;gap:10px;margin:0 0 8px}
   .calhead .m{font-family:var(--display);font-weight:700;font-size:17px;min-width:160px}
-  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:6px 0 4px;max-width:560px}
-  .cal .dow{font-size:11px;color:var(--faint);text-align:center;font-weight:600;padding-bottom:2px}
-  .cday{min-height:46px;border:1px solid var(--line);border-radius:9px;background:var(--card);
-        padding:5px 6px;display:flex;flex-direction:column;justify-content:space-between}
-  .cday.out{border:0;background:transparent}
-  .cday.now{border-color:var(--ink);border-width:2px;padding:4px 5px}
-  .cday .n{font-size:13px;font-weight:600}
+  .calwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:6px 0 4px;
+           padding-bottom:4px}
+  .cal{display:grid;grid-template-columns:repeat(7,minmax(104px,1fr));gap:4px;min-width:740px}
+  .cal .dow{font-size:11px;color:var(--faint);text-align:left;font-weight:600;
+            padding:0 0 3px 3px;min-width:0}
+  .cday{min-height:104px;border:1px solid var(--line);border-radius:9px;background:var(--card);
+        padding:6px 6px 5px;display:flex;flex-direction:column;gap:3px;min-width:0}
+  .cday.out{border:0;background:transparent;min-height:0}
+  .cday.now{border-color:var(--ink);border-width:2px;padding:5px 5px 4px}
+  .cday .n{font-size:13px;font-weight:600;line-height:1}
+  .cday .evs{display:flex;flex-direction:column;gap:2px;min-width:0;overflow:hidden}
+  .cday .ev{font-size:10.5px;line-height:1.35;color:#fff;border-radius:4px;padding:1px 5px;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+  .cday .more{font-size:10px;color:var(--faint);padding-left:2px}
   .cday .dots{display:flex;gap:3px;flex-wrap:wrap}
   .cday .dots i{width:6px;height:6px;border-radius:50%;display:block}
   .legend{display:flex;flex-wrap:wrap;gap:12px;margin:10px 0 0;font-size:12.5px;color:var(--slate)}
@@ -205,11 +212,8 @@
   .onnow .swatch{width:12px;height:26px;border-radius:4px;background:var(--rc);flex:none}
   .onnow .until{color:var(--faint);font-size:12.5px;margin-left:5px;white-space:nowrap}
 
-  .cday .top{display:flex;align-items:flex-start;justify-content:space-between;gap:3px}
-  .cday .bars{display:flex;gap:2px;margin-top:auto}
+  .cday .bars{display:flex;gap:2px;margin-top:auto;padding-top:3px}
   .cday .bars i{height:5px;border-radius:3px;flex:1;display:block;min-width:5px}
-  .cday .dots{display:flex;gap:2px;flex-wrap:wrap;justify-content:flex-end}
-  .cday .dots em{width:6px;height:6px;border-radius:50%;display:block}
 
   .periods{list-style:none;margin:6px 0 0;padding:0;max-width:600px}
   .periods li{display:flex;align-items:center;gap:10px;padding:9px 0;
@@ -282,7 +286,7 @@ const S = {
 };
 
 let CODE = null, ME = null, IS_MANAGER = false, MEMBERS = null, UNITS = [];
-const ui = { tab:"clean", res:null, day:isoOf(todayUTC()), offset:0, filter:"open",
+const ui = { tab:"cal", res:null, day:isoOf(todayUTC()), offset:0, filter:"open",
              replyTo:null, editZone:null, cal:null, focus:null };
 
 const SB = (SUPABASE_URL && SUPABASE_KEY && window.supabase)
@@ -835,7 +839,7 @@ const SEED_ROTATIONS = () => ([
     ],
     periods:[
       { id:uid(), unit:"Master A", from:"2026-08-15", to:"2026-10-31" },
-      { id:uid(), unit:"Upper A",  from:"2026-11-01", to:"2027-01-15" },
+      { id:uid(), unit:"Ground A", from:"2026-11-01", to:"2027-01-15" },
       { id:uid(), unit:"Upper C",  from:"2027-01-16", to:"2027-03-31" },
       { id:uid(), unit:"Upper D",  from:"2027-04-01", to:"2027-06-15" },
       { id:uid(), unit:"Upper B",  from:"2027-06-16", to:"2027-08-31" }
@@ -843,7 +847,7 @@ const SEED_ROTATIONS = () => ([
   { id:"outdoor", name:"Outdoor Garbage & Recycling Rotation",
     rules:[],
     periods:[
-      { id:uid(), unit:"Upper A",  from:"2027-02-01", to:"2027-03-07" },
+      { id:uid(), unit:"Ground A", from:"2027-02-01", to:"2027-03-07" },
       { id:uid(), unit:"Master A", from:"2027-03-08", to:"2027-04-11" },
       { id:uid(), unit:"Upper C",  from:"2027-04-12", to:"2027-05-16" },
       { id:uid(), unit:"Upper D",  from:"2027-05-17", to:"2027-06-20" },
@@ -859,9 +863,12 @@ function ll() {
   if (!Array.isArray(l.rotations) || !l.rotations.length) l.rotations = SEED_ROTATIONS();
   if (!Array.isArray(l.dates)) l.dates = [];
   // v1 stored MM-DD and repeated yearly; the real schedule has years on it.
-  if (l.v !== 2) {
-    l.rotations = SEED_ROTATIONS();
-    l.v = 2;
+  if (l.v !== 3) {
+    if (l.v !== 2) l.rotations = SEED_ROTATIONS();          // v1 repeated yearly
+    else l.rotations.forEach(r => r.periods.forEach(p => {  // v2 called it Upper A
+      if (p.unit === "Upper A") p.unit = "Ground A";
+    }));
+    l.v = 3;
     if (!migrated && IS_MANAGER) { migrated = true; saveConfig(); }
   }
   return l;
@@ -869,7 +876,7 @@ function ll() {
 
 // --- rooms and their colours ----------------------------------------------
 const unitList = () => (UNITS.length ? UNITS.map(u => u.name)
-                                     : ["Upper A","Upper B","Upper C","Upper D","Master A"]);
+                                     : ["Ground A","Upper B","Upper C","Upper D","Master A"]);
 const unitColor = name => {
   const i = unitList().indexOf(name);
   return col(i < 0 ? 7 : i);
@@ -978,12 +985,16 @@ function renderCal() {
   for (let d = 1; d <= total; d++) {
     const iso = `${Y}-${String(M).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
     const evs = byDate[iso] || [];
+    const shown = evs.slice(0, 3).map(e =>
+      `<span class="ev" style="background:${(KINDS[e.kind] || KINDS.house).color}"
+             title="${esc(e.label)}">${esc(e.label)}</span>`).join("");
+    const more = evs.length > 3 ? `<span class="more">+${evs.length - 3} more</span>` : "";
     const bars = l.rotations.map(rot => activeIn(rot, iso)
-      .map(p => `<i style="background:${unitColor(p.unit)}"></i>`).join("")).join("");
+      .map(p => `<i style="background:${unitColor(p.unit)}" title="${esc(rot.name)}: ${esc(p.unit)}"></i>`)
+      .join("")).join("");
     cells += `<div class="cday ${iso === today ? "now" : ""}">
-      <span class="top"><span class="n">${d}</span>
-        <span class="dots">${evs.map(e =>
-          `<em style="background:${(KINDS[e.kind] || KINDS.house).color}"></em>`).join("")}</span></span>
+      <span class="n">${d}</span>
+      <span class="evs">${shown}${more}</span>
       <span class="bars">${bars}</span>
     </div>`;
   }
@@ -1043,14 +1054,11 @@ function renderCal() {
       <button class="btn tiny" data-action="cal-next">→</button>
       ${key === today.slice(0,7) ? "" : `<button class="btn ghost tiny" data-action="cal-today">Back to now</button>`}
     </div>
-    <div class="cal">${cells}</div>
+    <div class="calwrap"><div class="cal">${cells}</div></div>
     <p class="sub" style="margin:8px 0 0;font-size:12.5px">Bars along the bottom of each day are the
-      landlord's rotations, coloured by room. Dots are dates.</p>
+      landlord's rotations, coloured by room.</p>
     <div class="legend">
       ${unitList().map(u => `<span><i style="background:${unitColor(u)}"></i>${esc(u)}</span>`).join("")}
-    </div>
-    <div class="legend">
-      ${Object.values(KINDS).map(k => `<span><em style="background:${k.color}"></em>${k.label}</span>`).join("")}
     </div>
 
     ${monthEvents.length ? `<ul class="evlist">${evRows}</ul>`
@@ -1083,7 +1091,7 @@ function renderCal() {
 // Render
 // ===========================================================================
 const TABS = [
-  ["clean","Cleaning"], ["book","Bookings"], ["cal","Calendar"], ["shop","Grocery Runs"],
+  ["cal","Calendar"], ["clean","Cleaning"], ["book","Bookings"], ["shop","Grocery Runs"],
   ["board","Noticeboard"], ["house","Housemates"]
 ];
 
