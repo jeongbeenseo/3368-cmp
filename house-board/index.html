@@ -177,6 +177,30 @@
   .status{font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px}
   .status.active{background:#e6f2ea;color:var(--c4)}
   .status.blocked{background:#fbe9ee;color:var(--c3)}
+
+  /* --- Calendar tab ------------------------------------------------ */
+  .calhead{display:flex;align-items:center;gap:10px;margin:0 0 8px}
+  .calhead .m{font-family:var(--display);font-weight:700;font-size:17px;min-width:160px}
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:6px 0 4px;max-width:560px}
+  .cal .dow{font-size:11px;color:var(--faint);text-align:center;font-weight:600;padding-bottom:2px}
+  .cday{min-height:46px;border:1px solid var(--line);border-radius:9px;background:var(--card);
+        padding:5px 6px;display:flex;flex-direction:column;justify-content:space-between}
+  .cday.out{border:0;background:transparent}
+  .cday.now{border-color:var(--ink);border-width:2px;padding:4px 5px}
+  .cday .n{font-size:13px;font-weight:600}
+  .cday .dots{display:flex;gap:3px;flex-wrap:wrap}
+  .cday .dots i{width:6px;height:6px;border-radius:50%;display:block}
+  .legend{display:flex;flex-wrap:wrap;gap:12px;margin:10px 0 0;font-size:12.5px;color:var(--slate)}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .legend i{width:8px;height:8px;border-radius:50%;display:block}
+  .evlist{margin:8px 0 0;padding:0;list-style:none;max-width:560px}
+  .evlist li{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:14.5px}
+  .evlist .d{color:var(--faint);font-size:12.5px;width:56px;flex:none}
+  .evlist i{width:8px;height:8px;border-radius:50%;flex:none}
+  .lltable{width:100%;border-collapse:collapse;font-size:14.5px;max-width:560px}
+  .lltable th{text-align:left;font-size:12.5px;color:var(--slate);font-weight:600;padding:7px 8px}
+  .lltable td{padding:6px 8px;border-top:1px solid var(--line)}
+  .lltable tr.thismonth td{background:#eef1fb;font-weight:600}
 </style>
 
 <div class="wrap" id="app"><p class="loading">Opening the board…</p></div>
@@ -235,7 +259,7 @@ const S = {
 
 let CODE = null, ME = null, IS_MANAGER = false, MEMBERS = null, UNITS = [];
 const ui = { tab:"clean", res:null, day:isoOf(todayUTC()), offset:0, filter:"open",
-             replyTo:null, editZone:null, focus:null };
+             replyTo:null, editZone:null, cal:null, focus:null };
 
 const SB = (SUPABASE_URL && SUPABASE_KEY && window.supabase)
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
@@ -755,14 +779,200 @@ function renderHouse() {
 }
 
 // ===========================================================================
+// Landlord schedule + calendar
+// ---------------------------------------------------------------------------
+// Read-only for housemates. The landlord sets this rotation, not us, so nobody
+// gets Change who buttons here — the manager types it in and everyone reads it.
+// All of it lives in `config`, which the database already restricts to the
+// manager, so this tab needed no new tables or functions.
+// ===========================================================================
+const MONTH_NAMES = ["January","February","March","April","May","June",
+                     "July","August","September","October","November","December"];
+const DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const KINDS = {
+  off:   { label:"Day off",       color:"var(--c4)" },
+  utm:   { label:"UTM",           color:"var(--c5)" },
+  house: { label:"House/landlord",color:"var(--c1)" }
+};
+
+function ll() {
+  if (!S.config.landlord) S.config.landlord = {};
+  const l = S.config.landlord;
+  if (!Array.isArray(l.chores) || !l.chores.length) l.chores = ["Trash", "Kitchen"];
+  if (!l.grid) l.grid = {};
+  if (!Array.isArray(l.dates)) l.dates = [];
+  return l;
+}
+
+const calKey = () => ui.cal || (ui.cal = isoOf(todayUTC()).slice(0, 7));
+function shiftMonth(key, by) {
+  const [y, m] = key.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1 + by, 1)).toISOString().slice(0, 7);
+}
+
+// --- Ontario statutory holidays, worked out rather than typed in -----------
+function nthDow(y, m, dow, n) {                      // m 1-12, dow 0=Sun
+  const first = new Date(Date.UTC(y, m - 1, 1));
+  return new Date(Date.UTC(y, m - 1, 1 + mod(dow - first.getUTCDay(), 7) + (n - 1) * 7));
+}
+function easterSunday(y) {
+  const a=y%19, b=Math.floor(y/100), c=y%100, d=Math.floor(b/4), e=b%4,
+        f=Math.floor((b+8)/25), g=Math.floor((b-f+1)/3), h=(19*a+b-d-g+15)%30,
+        i=Math.floor(c/4), k=c%4, l=(32+2*e+2*i-h-k)%7,
+        m=Math.floor((a+11*h+22*l)/451),
+        mo=Math.floor((h+l-7*m+114)/31), day=((h+l-7*m+114)%31)+1;
+  return new Date(Date.UTC(y, mo - 1, day));
+}
+function ontarioHolidays(y) {
+  const may25 = new Date(Date.UTC(y, 4, 25));
+  const victoria = addDays(may25, -(mod(may25.getUTCDay() - 1, 7) || 7));
+  return [
+    ["New Year's Day", new Date(Date.UTC(y, 0, 1))],
+    ["Family Day",     nthDow(y, 2, 1, 3)],
+    ["Good Friday",    addDays(easterSunday(y), -2)],
+    ["Victoria Day",   victoria],
+    ["Canada Day",     new Date(Date.UTC(y, 6, 1))],
+    ["Civic Holiday",  nthDow(y, 8, 1, 1)],
+    ["Labour Day",     nthDow(y, 9, 1, 1)],
+    ["Thanksgiving",   nthDow(y, 10, 1, 2)],
+    ["Christmas Day",  new Date(Date.UTC(y, 11, 25))],
+    ["Boxing Day",     new Date(Date.UTC(y, 11, 26))]
+  ].map(([label, d]) => ({ label, date: isoOf(d) }));
+}
+
+// UTM 2026-27. Gathered from a third-party academic calendar, NOT the registrar
+// directly — their page builds its table in the browser and blocks scraping.
+// Treat these as a starting point and check them at utm.utoronto.ca/registrar/dates.
+const UTM_2627 = [
+  ["2026-09-08", "Fall classes begin (F and Y)",        "utm"],
+  ["2026-09-17", "Waitlists close for F and Y courses", "utm"],
+  ["2026-09-21", "Last day to add F and Y courses",     "utm"],
+  ["2027-01-04", "Presidential Day — U closed",         "off"],
+  ["2027-01-05", "Presidential Day — U closed",         "off"],
+  ["2027-01-11", "Winter classes begin, Y resume",      "utm"],
+  ["2027-03-15", "Letter of Permission deadline",       "utm"],
+  ["2027-03-26", "Good Friday — U closed",              "off"],
+  ["2027-04-12", "Classes end (Y and S)",               "utm"],
+  ["2027-04-13", "Study break begins",                  "utm"],
+  ["2027-04-14", "Final exams begin",                   "utm"],
+  ["2027-04-29", "Final exams end",                     "utm"],
+  ["2027-04-30", "Deferred exams begin",                "utm"],
+  ["2027-05-05", "Deferred exams end",                  "utm"]
+];
+
+function renderCal() {
+  const l = ll();
+  const key = calKey();
+  const [Y, M] = key.split("-").map(Number);
+  const today = isoOf(todayUTC());
+  const thisMonth = parseISO(today).getUTCMonth();
+
+  // ---- month grid
+  const first = new Date(Date.UTC(Y, M - 1, 1));
+  const pad = mod(first.getUTCDay() - 1, 7);
+  const total = new Date(Date.UTC(Y, M, 0)).getUTCDate();
+  const byDate = {};
+  l.dates.forEach(d => (byDate[d.date] = byDate[d.date] || []).push(d));
+
+  let cells = DOW.map(d => `<div class="dow">${d}</div>`).join("");
+  for (let i = 0; i < pad; i++) cells += `<div class="cday out"></div>`;
+  for (let d = 1; d <= total; d++) {
+    const iso = `${Y}-${String(M).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    const evs = byDate[iso] || [];
+    cells += `<div class="cday ${iso === today ? "now" : ""}">
+      <span class="n">${d}</span>
+      <span class="dots">${evs.map(e =>
+        `<i style="background:${(KINDS[e.kind] || KINDS.house).color}"></i>`).join("")}</span>
+    </div>`;
+  }
+
+  const monthEvents = l.dates.filter(d => d.date.startsWith(key))
+                             .sort((a, b) => a.date.localeCompare(b.date));
+  const evRows = monthEvents.map(e => {
+    const k = KINDS[e.kind] || KINDS.house;
+    return `<li>
+      <span class="d">${fmtShort(parseISO(e.date))}</span>
+      <i style="background:${k.color}"></i>
+      <span style="flex:1">${esc(e.label)}</span>
+      ${IS_MANAGER ? `<button class="btn ghost tiny" data-action="del-date" data-id="${e.id}">Remove</button>` : ""}
+    </li>`;
+  }).join("");
+
+  // ---- landlord rotation
+  const head = l.chores.map(c =>
+    `<th>${esc(c)}${IS_MANAGER ? ` <button class="btn ghost tiny" data-action="del-chore" data-id="${esc(c)}">×</button>` : ""}</th>`).join("");
+  const rows = MONTH_NAMES.map((name, i) => {
+    const tds = l.chores.map(c => {
+      const v = (l.grid[i + 1] || {})[c] || "";
+      return IS_MANAGER
+        ? `<td><input value="${esc(v)}" data-change="ll" data-id="${i + 1}" data-id2="${esc(c)}"
+             placeholder="—" style="width:112px"></td>`
+        : `<td>${v ? esc(v) : `<span class="sub">—</span>`}</td>`;
+    }).join("");
+    return `<tr class="${i === thisMonth ? "thismonth" : ""}"><td>${name}</td>${tds}</tr>`;
+  }).join("");
+
+  return `
+    <h2 class="sec">Calendar</h2>
+    <p class="lede">The landlord's rotation and the dates worth knowing. Separate from our own cleaning rota.</p>
+
+    <h3 class="sub-h" style="margin-top:0">Landlord's rotation</h3>
+    <p class="sub" style="margin:0 0 10px">Set by the landlord, fixed for the year. This month is highlighted.</p>
+    <div class="scroll"><table class="lltable">
+      <thead><tr><th>Month</th>${head}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    ${IS_MANAGER ? `
+      <div class="row" style="margin-top:12px">
+        <input id="chName" placeholder="Another chore" data-enter="add-chore" style="width:160px">
+        <button class="btn" data-action="add-chore">Add column</button>
+      </div>`
+      : `<p class="locked">Only ${esc(managerName())} can edit this — it comes from the landlord, not from us.</p>`}
+
+    <h3 class="sub-h">${MONTH_NAMES[M-1]} ${Y}</h3>
+    <div class="calhead">
+      <button class="btn tiny" data-action="cal-prev">←</button>
+      <button class="btn tiny" data-action="cal-next">→</button>
+      ${key === today.slice(0,7) ? "" : `<button class="btn ghost tiny" data-action="cal-today">Back to now</button>`}
+    </div>
+    <div class="cal">${cells}</div>
+    <div class="legend">${Object.values(KINDS).map(k =>
+      `<span><i style="background:${k.color}"></i>${k.label}</span>`).join("")}</div>
+
+    ${monthEvents.length ? `<ul class="evlist">${evRows}</ul>`
+      : `<p class="sub" style="margin-top:14px">Nothing marked this month.</p>`}
+
+    ${IS_MANAGER ? `
+      <h3 class="sub-h">Add a date</h3>
+      <div class="row">
+        <label class="stack">Date<input id="evDate" type="date" value="${today}"></label>
+        <label class="stack">What is it<input id="evLabel" placeholder="Reading week starts"
+               data-enter="add-date" style="width:220px"></label>
+        <label class="stack">Kind<select id="evKind">
+          ${Object.entries(KINDS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join("")}
+        </select></label>
+        <button class="btn solid" data-action="add-date">Add</button>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" data-action="load-holidays">Fill in ${Y} statutory holidays</button>
+        <button class="btn" data-action="load-utm">Fill in UTM 2026–27 dates</button>
+      </div>
+      <p class="locked">Ontario holidays are worked out from the rules, so they're right every year.
+        The UTM dates came from a third-party calendar rather than the registrar — check them against
+        utm.utoronto.ca/registrar/dates and fix any that are off, or just delete them and add your own.</p>` : ""}`;
+}
+
+// ===========================================================================
 // Render
 // ===========================================================================
 const TABS = [
-  ["clean","Cleaning"], ["book","Bookings"], ["shop","Grocery Runs"], ["board","Noticeboard"], ["house","Housemates"]
+  ["clean","Cleaning"], ["book","Bookings"], ["cal","Calendar"], ["shop","Grocery Runs"],
+  ["board","Noticeboard"], ["house","Housemates"]
 ];
 
 function render() {
-  const body = { clean: renderClean, book: renderBook, shop: renderShop, board: renderBoard, house: renderHouse }[ui.tab]();
+  const body = { clean: renderClean, book: renderBook, cal: renderCal, shop: renderShop,
+                 board: renderBoard, house: renderHouse }[ui.tab]();
   const waiting = IS_MANAGER && MEMBERS ? MEMBERS.filter(m => m.status === "pending").length : 0;
 
   document.getElementById("app").innerHTML = `
@@ -792,6 +1002,54 @@ const actions = {
   tab: (el, id) => { ui.tab = id; ui.replyTo = null; ui.editZone = null; render(); },
   refresh: async () => { await loadAll(); await loadMembers(); render(); toast("Board refreshed."); },
   signout: () => { local.del("hb:code"); location.replace("login.html"); },
+
+  // --- calendar ---
+  "cal-prev":  () => { ui.cal = shiftMonth(calKey(), -1); render(); },
+  "cal-next":  () => { ui.cal = shiftMonth(calKey(),  1); render(); },
+  "cal-today": () => { ui.cal = null; render(); },
+  "add-date": () => {
+    const date = val("evDate"), label = val("evLabel");
+    if (!date || !label) return toast("Needs a date and a label.");
+    ll().dates.push({ id: uid(), date, label, kind: val("evKind") || "house" });
+    ui.cal = date.slice(0, 7); saveConfig(); ui.focus = "evLabel"; render();
+  },
+  "del-date": (el, id) => {
+    const l = ll(); l.dates = l.dates.filter(d => d.id !== id); saveConfig(); render();
+  },
+  "load-holidays": () => {
+    const l = ll(), [Y] = calKey().split("-").map(Number);
+    let added = 0;
+    ontarioHolidays(Y).forEach(h => {
+      if (!l.dates.some(d => d.date === h.date && d.label === h.label)) {
+        l.dates.push({ id: uid(), date: h.date, label: h.label, kind: "off" }); added++;
+      }
+    });
+    saveConfig(); render();
+    toast(added ? `Added ${added} holidays for ${Y}.` : `${Y} holidays are already in.`);
+  },
+  "load-utm": () => {
+    const l = ll();
+    let added = 0;
+    UTM_2627.forEach(([date, label, kind]) => {
+      if (!l.dates.some(d => d.date === date && d.label === label)) {
+        l.dates.push({ id: uid(), date, label, kind }); added++;
+      }
+    });
+    saveConfig(); render();
+    toast(added ? `Added ${added} UTM dates — worth checking against the registrar.`
+                : "Those UTM dates are already in.");
+  },
+  "add-chore": () => {
+    const name = val("chName"); if (!name) return;
+    const l = ll(); if (!l.chores.includes(name)) l.chores.push(name);
+    saveConfig(); ui.focus = "chName"; render();
+  },
+  "del-chore": (el, id) => {
+    const l = ll();
+    l.chores = l.chores.filter(c => c !== id);
+    Object.values(l.grid).forEach(row => delete row[id]);
+    saveConfig(); render();
+  },
 
   // --- cleaning ---
   cyc: (el, id) => { ui.offset = id === "0" ? 0 : ui.offset + Number(id); render(); },
@@ -960,6 +1218,11 @@ const changers = {
       S.config.zones.forEach(z => { if (!z.people || !z.people.length) z.people = cur[z.id].slice(); });
     }
     S.config.mode = el.value; saveConfig(); render();
+  },
+  ll: el => {
+    const l = ll(), m = el.dataset.id, chore = el.dataset.id2;
+    (l.grid[m] = l.grid[m] || {})[chore] = el.value.trim();
+    saveConfig();
   },
   "cycle-len": el => { S.config.cycleDays = Number(el.value); saveConfig(); render(); },
   anchor: el => {
