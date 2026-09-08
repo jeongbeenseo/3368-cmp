@@ -197,10 +197,34 @@
   .evlist li{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:14.5px}
   .evlist .d{color:var(--faint);font-size:12.5px;width:56px;flex:none}
   .evlist i{width:8px;height:8px;border-radius:50%;flex:none}
-  .lltable{width:100%;border-collapse:collapse;font-size:14.5px;max-width:560px}
-  .lltable th{text-align:left;font-size:12.5px;color:var(--slate);font-weight:600;padding:7px 8px}
-  .lltable td{padding:6px 8px;border-top:1px solid var(--line)}
-  .lltable tr.thismonth td{background:#eef1fb;font-weight:600}
+  .rotnows{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:11px;margin-bottom:20px}
+  .rotnow{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:14px 15px}
+  .rotnow h4{font-family:var(--display);font-weight:700;font-size:14px;color:var(--slate);
+             margin:0 0 9px;letter-spacing:.01em}
+  .onnow{display:flex;align-items:center;gap:9px;font-size:16px;margin-bottom:4px}
+  .onnow .swatch{width:12px;height:26px;border-radius:4px;background:var(--rc);flex:none}
+  .onnow .until{color:var(--faint);font-size:12.5px;margin-left:5px;white-space:nowrap}
+
+  .cday .top{display:flex;align-items:flex-start;justify-content:space-between;gap:3px}
+  .cday .bars{display:flex;gap:2px;margin-top:auto}
+  .cday .bars i{height:5px;border-radius:3px;flex:1;display:block;min-width:5px}
+  .cday .dots{display:flex;gap:2px;flex-wrap:wrap;justify-content:flex-end}
+  .cday .dots em{width:6px;height:6px;border-radius:50%;display:block}
+
+  .periods{list-style:none;margin:6px 0 0;padding:0;max-width:600px}
+  .periods li{display:flex;align-items:center;gap:10px;padding:9px 0;
+              border-top:1px solid var(--line);font-size:15px}
+  .periods li.on{font-weight:600}
+  .periods .swatch{width:11px;height:22px;border-radius:4px;flex:none}
+  .periods .range{color:var(--slate);font-size:13.5px;width:186px;flex:none;
+                  font-variant-numeric:tabular-nums}
+  .periods .nowtag{font-size:11px;font-weight:600;background:var(--ink);color:#fff;
+                   padding:2px 8px;border-radius:999px}
+  .rules{margin:2px 0 0;padding-left:19px;color:var(--slate);font-size:13px;line-height:1.45}
+  .rules li{margin-bottom:4px}
+  .rules.wide{max-width:62ch;font-size:13.5px;margin:0 0 14px}
+  .evlist em{width:8px;height:8px;border-radius:50%;flex:none;display:block}
+  .legend em{width:8px;height:8px;border-radius:50%;display:block}
 </style>
 
 <div class="wrap" id="app"><p class="loading">Opening the board…</p></div>
@@ -313,6 +337,9 @@ async function loadAll() {
   if (cfg.error || docs.error || bk.error) { toast("Can't reach the board right now."); return; }
 
   S.roster = ros.data || [];
+
+  const un = await SB.from("units").select("name,sort").order("sort");
+  if (un.data) UNITS = un.data;
 
   const c = cfg.data?.data;
   if (c && c.zones) Object.assign(S.config, c);
@@ -779,30 +806,86 @@ function renderHouse() {
 }
 
 // ===========================================================================
-// Landlord schedule + calendar
+// Landlord rotations + calendar
 // ---------------------------------------------------------------------------
-// Read-only for housemates. The landlord sets this rotation, not us, so nobody
-// gets Change who buttons here — the manager types it in and everyone reads it.
-// All of it lives in `config`, which the database already restricts to the
-// manager, so this tab needed no new tables or functions.
+// The landlord's two rotations don't line up with months or with each other,
+// so they're stored as date ranges (MM-DD, no year) that repeat annually. That
+// also handles the indoor one running across new year. All of it sits in
+// `config`, which the database already restricts to the manager.
 // ===========================================================================
 const MONTH_NAMES = ["January","February","March","April","May","June",
                      "July","August","September","October","November","December"];
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const KINDS = {
-  off:   { label:"Day off",       color:"var(--c4)" },
-  utm:   { label:"UTM",           color:"var(--c5)" },
-  house: { label:"House/landlord",color:"var(--c1)" }
+  off:   { label:"Day off",  color:"var(--c4)" },
+  utm:   { label:"UTM",      color:"var(--c5)" },
+  house: { label:"House",    color:"var(--c1)" }
 };
+
+// The landlord's schedule, as written on the tenancy sheet. Real dates, not a
+// repeating cycle — the two rotations run over different spans and don't line
+// up with each other or with months.
+const SEED_ROTATIONS = () => ([
+  { id:"indoor", name:"Indoor Cleaning Rotation",
+    rules:[
+      "Kitchen: keep the shared kitchen reasonably clean and tidy. Empty garbage bins regularly and replace garbage bags as needed.",
+      "Bathroom garbage: empty the shared bathroom garbage bins regularly and replace garbage bags as needed.",
+      "Waste control: garbage must not be allowed to overflow or create an odor or sanitation problem."
+    ],
+    periods:[
+      { id:uid(), unit:"Master A", from:"2026-08-15", to:"2026-10-31" },
+      { id:uid(), unit:"Upper A",  from:"2026-11-01", to:"2027-01-15" },
+      { id:uid(), unit:"Upper C",  from:"2027-01-16", to:"2027-03-31" },
+      { id:uid(), unit:"Upper D",  from:"2027-04-01", to:"2027-06-15" },
+      { id:uid(), unit:"Upper B",  from:"2027-06-16", to:"2027-08-31" }
+    ]},
+  { id:"outdoor", name:"Outdoor Garbage & Recycling Rotation",
+    rules:[],
+    periods:[
+      { id:uid(), unit:"Upper A",  from:"2027-02-01", to:"2027-03-07" },
+      { id:uid(), unit:"Master A", from:"2027-03-08", to:"2027-04-11" },
+      { id:uid(), unit:"Upper C",  from:"2027-04-12", to:"2027-05-16" },
+      { id:uid(), unit:"Upper D",  from:"2027-05-17", to:"2027-06-20" },
+      { id:uid(), unit:"Upper B",  from:"2027-06-21", to:"2027-07-31" }
+    ]}
+]);
+
+let migrated = false;
 
 function ll() {
   if (!S.config.landlord) S.config.landlord = {};
   const l = S.config.landlord;
-  if (!Array.isArray(l.chores) || !l.chores.length) l.chores = ["Trash", "Kitchen"];
-  if (!l.grid) l.grid = {};
+  if (!Array.isArray(l.rotations) || !l.rotations.length) l.rotations = SEED_ROTATIONS();
   if (!Array.isArray(l.dates)) l.dates = [];
+  // v1 stored MM-DD and repeated yearly; the real schedule has years on it.
+  if (l.v !== 2) {
+    l.rotations = SEED_ROTATIONS();
+    l.v = 2;
+    if (!migrated && IS_MANAGER) { migrated = true; saveConfig(); }
+  }
   return l;
 }
+
+// --- rooms and their colours ----------------------------------------------
+const unitList = () => (UNITS.length ? UNITS.map(u => u.name)
+                                     : ["Upper A","Upper B","Upper C","Upper D","Master A"]);
+const unitColor = name => {
+  const i = unitList().indexOf(name);
+  return col(i < 0 ? 7 : i);
+};
+const whoIn = unit => {
+  const p = people().find(x => x.unit === unit);
+  return p ? p.name : "";
+};
+
+// --- plain date ranges ----------------------------------------------------
+const inPeriod = (iso, p) => iso >= p.from && iso <= p.to;
+const fmtFull = iso => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${MON[m-1]} ${d}, ${y}`;
+};
+const activeIn = (rot, iso) => rot.periods.filter(p => inPeriod(iso, p));
 
 const calKey = () => ui.cal || (ui.cal = isoOf(todayUTC()).slice(0, 7));
 function shiftMonth(key, by) {
@@ -811,7 +894,7 @@ function shiftMonth(key, by) {
 }
 
 // --- Ontario statutory holidays, worked out rather than typed in -----------
-function nthDow(y, m, dow, n) {                      // m 1-12, dow 0=Sun
+function nthDow(y, m, dow, n) {
   const first = new Date(Date.UTC(y, m - 1, 1));
   return new Date(Date.UTC(y, m - 1, 1 + mod(dow - first.getUTCDay(), 7) + (n - 1) * 7));
 }
@@ -840,9 +923,8 @@ function ontarioHolidays(y) {
   ].map(([label, d]) => ({ label, date: isoOf(d) }));
 }
 
-// UTM 2026-27. Gathered from a third-party academic calendar, NOT the registrar
-// directly — their page builds its table in the browser and blocks scraping.
-// Treat these as a starting point and check them at utm.utoronto.ca/registrar/dates.
+// UTM 2026-27. From a third-party academic calendar, NOT the registrar directly —
+// their page builds its table in the browser. Check at utm.utoronto.ca/registrar/dates.
 const UTM_2627 = [
   ["2026-09-08", "Fall classes begin (F and Y)",        "utm"],
   ["2026-09-17", "Waitlists close for F and Y courses", "utm"],
@@ -865,7 +947,24 @@ function renderCal() {
   const key = calKey();
   const [Y, M] = key.split("-").map(Number);
   const today = isoOf(todayUTC());
-  const thisMonth = parseISO(today).getUTCMonth();
+
+  // ---- who's on duty right now
+  const nowCards = l.rotations.map(rot => {
+    const act = activeIn(rot, today);
+    const body = act.length
+      ? act.map(p => `<div class="onnow" style="--rc:${unitColor(p.unit)}">
+           <span class="swatch"></span>
+           <span><b>${esc(p.unit)}</b>${whoIn(p.unit) ? ` · ${esc(whoIn(p.unit))}` : ""}
+             <span class="until">until ${fmtFull(p.to)}</span></span>
+         </div>`).join("")
+      : `<p class="sub" style="margin:0">Nobody assigned right now.</p>`;
+    return `<article class="rotnow">
+      <h4>${esc(rot.name)}</h4>
+      ${body}
+      ${(rot.rules || []).length
+        ? `<ol class="rules">${rot.rules.map(r => `<li>${esc(r)}</li>`).join("")}</ol>` : ""}
+    </article>`;
+  }).join("");
 
   // ---- month grid
   const first = new Date(Date.UTC(Y, M - 1, 1));
@@ -879,55 +978,64 @@ function renderCal() {
   for (let d = 1; d <= total; d++) {
     const iso = `${Y}-${String(M).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
     const evs = byDate[iso] || [];
+    const bars = l.rotations.map(rot => activeIn(rot, iso)
+      .map(p => `<i style="background:${unitColor(p.unit)}"></i>`).join("")).join("");
     cells += `<div class="cday ${iso === today ? "now" : ""}">
-      <span class="n">${d}</span>
-      <span class="dots">${evs.map(e =>
-        `<i style="background:${(KINDS[e.kind] || KINDS.house).color}"></i>`).join("")}</span>
+      <span class="top"><span class="n">${d}</span>
+        <span class="dots">${evs.map(e =>
+          `<em style="background:${(KINDS[e.kind] || KINDS.house).color}"></em>`).join("")}</span></span>
+      <span class="bars">${bars}</span>
     </div>`;
   }
 
+  // ---- rotation periods listed out
+  const rotLists = l.rotations.map(rot => {
+    const rows = rot.periods.slice()
+      .sort((a, b) => a.from.localeCompare(b.from))
+      .map(p => {
+        const on = inPeriod(today, p);
+        return `<li class="${on ? "on" : ""}">
+          <span class="swatch" style="background:${unitColor(p.unit)}"></span>
+          <span class="range">${fmtFull(p.from)} – ${fmtFull(p.to)}</span>
+          <span style="flex:1"><b>${esc(p.unit)}</b>${whoIn(p.unit) ? ` · ${esc(whoIn(p.unit))}` : ""}</span>
+          ${on ? `<span class="nowtag">now</span>` : ""}
+          ${IS_MANAGER ? `<button class="btn ghost tiny" data-action="del-period"
+              data-id="${rot.id}" data-id2="${p.id}">Remove</button>` : ""}
+        </li>`;
+      }).join("");
+    const unitOpts = unitList().map(u => `<option>${esc(u)}</option>`).join("");
+    return `
+      <h3 class="sub-h">${esc(rot.name)}</h3>
+      ${(rot.rules || []).length
+        ? `<ol class="rules wide">${rot.rules.map(r => `<li>${esc(r)}</li>`).join("")}</ol>` : ""}
+      <ul class="periods">${rows}</ul>
+      ${IS_MANAGER ? `
+        <div class="row" style="margin-top:10px">
+          <label class="stack">Room<select id="pu-${rot.id}">${unitOpts}</select></label>
+          <label class="stack">From<input id="pf-${rot.id}" type="date"></label>
+          <label class="stack">To<input id="pt-${rot.id}" type="date"></label>
+          <button class="btn" data-action="add-period" data-id="${rot.id}">Add period</button>
+        </div>` : ""}`;
+  }).join("");
+
+  // ---- school dates for the shown month
   const monthEvents = l.dates.filter(d => d.date.startsWith(key))
                              .sort((a, b) => a.date.localeCompare(b.date));
   const evRows = monthEvents.map(e => {
     const k = KINDS[e.kind] || KINDS.house;
     return `<li>
       <span class="d">${fmtShort(parseISO(e.date))}</span>
-      <i style="background:${k.color}"></i>
+      <em style="background:${k.color}"></em>
       <span style="flex:1">${esc(e.label)}</span>
       ${IS_MANAGER ? `<button class="btn ghost tiny" data-action="del-date" data-id="${e.id}">Remove</button>` : ""}
     </li>`;
   }).join("");
 
-  // ---- landlord rotation
-  const head = l.chores.map(c =>
-    `<th>${esc(c)}${IS_MANAGER ? ` <button class="btn ghost tiny" data-action="del-chore" data-id="${esc(c)}">×</button>` : ""}</th>`).join("");
-  const rows = MONTH_NAMES.map((name, i) => {
-    const tds = l.chores.map(c => {
-      const v = (l.grid[i + 1] || {})[c] || "";
-      return IS_MANAGER
-        ? `<td><input value="${esc(v)}" data-change="ll" data-id="${i + 1}" data-id2="${esc(c)}"
-             placeholder="—" style="width:112px"></td>`
-        : `<td>${v ? esc(v) : `<span class="sub">—</span>`}</td>`;
-    }).join("");
-    return `<tr class="${i === thisMonth ? "thismonth" : ""}"><td>${name}</td>${tds}</tr>`;
-  }).join("");
-
   return `
     <h2 class="sec">Calendar</h2>
-    <p class="lede">The landlord's rotation and the dates worth knowing. Separate from our own cleaning rota.</p>
+    <p class="lede">The landlord's rotations and the dates worth knowing. Separate from our own cleaning rota.</p>
 
-    <h3 class="sub-h" style="margin-top:0">Landlord's rotation</h3>
-    <p class="sub" style="margin:0 0 10px">Set by the landlord, fixed for the year. This month is highlighted.</p>
-    <div class="scroll"><table class="lltable">
-      <thead><tr><th>Month</th>${head}</tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>
-    ${IS_MANAGER ? `
-      <div class="row" style="margin-top:12px">
-        <input id="chName" placeholder="Another chore" data-enter="add-chore" style="width:160px">
-        <button class="btn" data-action="add-chore">Add column</button>
-      </div>`
-      : `<p class="locked">Only ${esc(managerName())} can edit this — it comes from the landlord, not from us.</p>`}
+    <div class="rotnows">${nowCards}</div>
 
     <h3 class="sub-h">${MONTH_NAMES[M-1]} ${Y}</h3>
     <div class="calhead">
@@ -936,11 +1044,19 @@ function renderCal() {
       ${key === today.slice(0,7) ? "" : `<button class="btn ghost tiny" data-action="cal-today">Back to now</button>`}
     </div>
     <div class="cal">${cells}</div>
-    <div class="legend">${Object.values(KINDS).map(k =>
-      `<span><i style="background:${k.color}"></i>${k.label}</span>`).join("")}</div>
+    <p class="sub" style="margin:8px 0 0;font-size:12.5px">Bars along the bottom of each day are the
+      landlord's rotations, coloured by room. Dots are dates.</p>
+    <div class="legend">
+      ${unitList().map(u => `<span><i style="background:${unitColor(u)}"></i>${esc(u)}</span>`).join("")}
+    </div>
+    <div class="legend">
+      ${Object.values(KINDS).map(k => `<span><em style="background:${k.color}"></em>${k.label}</span>`).join("")}
+    </div>
 
     ${monthEvents.length ? `<ul class="evlist">${evRows}</ul>`
-      : `<p class="sub" style="margin-top:14px">Nothing marked this month.</p>`}
+      : `<p class="sub" style="margin-top:14px">No dates marked this month.</p>`}
+
+    ${rotLists}
 
     ${IS_MANAGER ? `
       <h3 class="sub-h">Add a date</h3>
@@ -959,7 +1075,8 @@ function renderCal() {
       </div>
       <p class="locked">Ontario holidays are worked out from the rules, so they're right every year.
         The UTM dates came from a third-party calendar rather than the registrar — check them against
-        utm.utoronto.ca/registrar/dates and fix any that are off, or just delete them and add your own.</p>` : ""}`;
+        utm.utoronto.ca/registrar/dates.</p>`
+      : `<p class="locked">Set by the landlord, not by us. Only ${esc(managerName())} can change any of this.</p>`}`;
 }
 
 // ===========================================================================
@@ -1007,6 +1124,19 @@ const actions = {
   "cal-prev":  () => { ui.cal = shiftMonth(calKey(), -1); render(); },
   "cal-next":  () => { ui.cal = shiftMonth(calKey(),  1); render(); },
   "cal-today": () => { ui.cal = null; render(); },
+  "add-period": (el, id) => {
+    const rot = ll().rotations.find(r => r.id === id); if (!rot) return;
+    const from = val("pf-" + id), to = val("pt-" + id);
+    if (!from || !to) return toast("Needs a start and an end date.");
+    if (to < from) return toast("The end date is before the start date.");
+    rot.periods.push({ id: uid(), unit: val("pu-" + id), from, to });
+    saveConfig(); render();
+  },
+  "del-period": (el, id) => {
+    const rot = ll().rotations.find(r => r.id === id); if (!rot) return;
+    rot.periods = rot.periods.filter(p => p.id !== el.dataset.id2);
+    saveConfig(); render();
+  },
   "add-date": () => {
     const date = val("evDate"), label = val("evLabel");
     if (!date || !label) return toast("Needs a date and a label.");
@@ -1038,17 +1168,6 @@ const actions = {
     saveConfig(); render();
     toast(added ? `Added ${added} UTM dates — worth checking against the registrar.`
                 : "Those UTM dates are already in.");
-  },
-  "add-chore": () => {
-    const name = val("chName"); if (!name) return;
-    const l = ll(); if (!l.chores.includes(name)) l.chores.push(name);
-    saveConfig(); ui.focus = "chName"; render();
-  },
-  "del-chore": (el, id) => {
-    const l = ll();
-    l.chores = l.chores.filter(c => c !== id);
-    Object.values(l.grid).forEach(row => delete row[id]);
-    saveConfig(); render();
   },
 
   // --- cleaning ---
@@ -1218,11 +1337,6 @@ const changers = {
       S.config.zones.forEach(z => { if (!z.people || !z.people.length) z.people = cur[z.id].slice(); });
     }
     S.config.mode = el.value; saveConfig(); render();
-  },
-  ll: el => {
-    const l = ll(), m = el.dataset.id, chore = el.dataset.id2;
-    (l.grid[m] = l.grid[m] || {})[chore] = el.value.trim();
-    saveConfig();
   },
   "cycle-len": el => { S.config.cycleDays = Number(el.value); saveConfig(); render(); },
   anchor: el => {
