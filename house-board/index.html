@@ -174,6 +174,7 @@
   .members code{font-family:ui-monospace,Menlo,Consolas,monospace;background:#f1f3f8;
                 padding:3px 9px;border-radius:6px;letter-spacing:.12em}
   .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .confirming{display:flex;align-items:center;gap:6px;white-space:nowrap}
   .status{font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px}
   .status.active{background:#e6f2ea;color:var(--c4)}
   .status.blocked{background:#fbe9ee;color:var(--c3)}
@@ -306,7 +307,7 @@ const S = {
 let CODE = null, ME = null, ROLE = "member", IS_MANAGER = false, IS_GUEST = false,
     MEMBERS = null, UNITS = [];
 const ui = { tab:"cal", res:null, day:isoOf(todayUTC()), offset:0, filter:"open",
-             replyTo:null, editZone:null, cal:null, selDay:null, focus:null };
+             replyTo:null, editZone:null, cal:null, selDay:null, editCode:null, pendingCode:null, focus:null };
 
 const SB = (SUPABASE_URL && SUPABASE_KEY && window.supabase)
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
@@ -789,8 +790,24 @@ function renderHouse() {
     <tr>
       <td><input value="${esc(m.name)}" data-change="m-name" data-id="${m.id}" style="width:125px" aria-label="Name"></td>
       <td><select data-change="m-unit" data-id="${m.id}" aria-label="Unit">${unitOpts(m.unit)}</select></td>
-      <td><input value="${esc(m.code)}" data-change="m-code" data-id="${m.id}" inputmode="numeric"
-                 maxlength="4" style="width:70px" aria-label="Code"></td>
+      <td>${(() => {
+        const pend = ui.pendingCode && ui.pendingCode.id === m.id ? ui.pendingCode.code : null;
+        if (pend) return `
+          <span class="confirming">
+            <span class="sub" style="font-size:12px">Change to <b>${esc(pend)}</b>?</span>
+            <button class="btn tiny solid" data-action="confirm-code" data-id="${m.id}">Yes, change it</button>
+            <button class="btn ghost tiny" data-action="cancel-code">No</button>
+          </span>`;
+        if (ui.editCode === m.id) return `
+          <span class="confirming">
+            <input id="nc-${m.id}" inputmode="numeric" maxlength="4" placeholder="new code"
+                   style="width:78px" aria-label="New code" data-enter="stage-code" data-id="${m.id}">
+            <button class="btn tiny" data-action="stage-code" data-id="${m.id}">Set</button>
+            <button class="btn ghost tiny" data-action="cancel-code">Cancel</button>
+          </span>`;
+        return `<code>${esc(m.code)}</code>
+          <button class="btn ghost tiny" data-action="edit-code" data-id="${m.id}">Change</button>`;
+      })()}</td>
       <td><span class="status ${m.status}">${m.status}</span></td>
       <td>${m.id === ME
         ? `<span class="role">manager</span>`
@@ -1424,6 +1441,24 @@ const actions = {
     await member(id, { p_status: el.dataset.id2 === "blocked" ? "active" : "blocked" });
     await loadAll(); render();
   },
+  // Changing someone's sign-in code takes three deliberate steps, because
+  // getting it wrong locks a housemate out of the board.
+  "edit-code":   (el, id) => { ui.editCode = id; ui.pendingCode = null; ui.focus = "nc-" + id; render(); },
+  "cancel-code": () => { ui.editCode = null; ui.pendingCode = null; render(); },
+  "stage-code":  (el, id) => {
+    const code = (val("nc-" + id) || "").replace(/\D/g, "");
+    if (code.length !== 4) return toast("A code is exactly 4 digits.");
+    const clash = (MEMBERS || []).find(m => m.code === code && m.id !== id);
+    if (clash) return toast(`${clash.name} already uses that code.`);
+    ui.pendingCode = { id, code }; ui.editCode = null; render();
+  },
+  "confirm-code": async (el, id) => {
+    const code = ui.pendingCode && ui.pendingCode.id === id ? ui.pendingCode.code : null;
+    ui.pendingCode = null;
+    if (!code) return render();
+    await member(id, { p_new_code: code });
+    render(); toast("Code changed — tell them the new one.");
+  },
   "remove-member": async (el, id) => {
     try { await rpc("remove_member", { p_code: CODE, p_id: id }); }
     catch (e) { return toast(e.message); }
@@ -1470,11 +1505,7 @@ const changers = {
   "m-name": async el => { await member(el.dataset.id, { p_name: el.value.trim() }); await loadAll(); render(); },
   "m-unit": async el => { await member(el.dataset.id, { p_unit: el.value }); await loadAll(); render(); },
   "m-role": async el => { await member(el.dataset.id, { p_role: el.value }); await loadAll(); render(); },
-  "m-code": async el => {
-    const code = el.value.replace(/\D/g, "").slice(0, 4);
-    if (code.length !== 4) { toast("Codes must be exactly 4 digits."); return render(); }
-    await member(el.dataset.id, { p_new_code: code }); render();
-  }
+  "m-code-unused": () => {}
 };
 
 // A guest sees the board exactly as everyone else does — every button is there,
