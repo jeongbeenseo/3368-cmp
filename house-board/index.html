@@ -307,7 +307,7 @@ const S = {
 let CODE = null, ME = null, ROLE = "member", IS_MANAGER = false, IS_GUEST = false,
     MEMBERS = null, UNITS = [];
 const ui = { tab:"cal", res:null, day:isoOf(todayUTC()), offset:0, filter:"open",
-             replyTo:null, editZone:null, cal:null, selDay:null, editCode:null, pendingCode:null, focus:null };
+             replyTo:null, editZone:null, cal:null, selDay:null, clearDates:false, editCode:null, pendingCode:null, focus:null };
 
 const SB = (SUPABASE_URL && SUPABASE_KEY && window.supabase)
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
@@ -886,8 +886,9 @@ const KIND_COLOR = { off:"var(--c4)", utm:"var(--c5)", house:"var(--c1)",
                      shop:"var(--c0)", bday:"var(--c3)" };
 
 function dayItems(iso) {
-  const out = ll().dates.filter(d => d.date === iso)
-    .map(d => ({ id:d.id, kind:d.kind || "house", label:d.label, removable:true }));
+  const out = ll().dates.filter(d => d.to ? (iso >= d.date && iso <= d.to) : d.date === iso)
+    .map(d => ({ id:d.id, kind:d.kind || "house", label:d.label, removable:true,
+                 span: d.to && d.to !== d.date ? `${fmtFull(d.date)} – ${fmtFull(d.to)}` : null }));
   Object.entries(S.birthdays || {}).forEach(([id, md]) => {
     if (md && iso.slice(5) === md && person(id))
       out.push({ id: "b" + id, kind: "bday", removable: false,
@@ -1006,21 +1007,83 @@ function ontarioHolidays(y) {
 
 // UTM 2026-27. From a third-party academic calendar, NOT the registrar directly —
 // their page builds its table in the browser. Check at utm.utoronto.ca/registrar/dates.
+// UTM Fall 2026 - Winter 2027, taken from the registrar's own Important Dates
+// page. Fee-schedule minutiae (deregulated/BCOM billing, service charges, late
+// registration, proof-of-payment forms) left out — add them by hand if you need
+// them. [date, label, kind, endDate?]
 const UTM_2627 = [
-  ["2026-09-08", "Fall classes begin (F and Y)",        "utm"],
-  ["2026-09-17", "Waitlists close for F and Y courses", "utm"],
-  ["2026-09-21", "Last day to add F and Y courses",     "utm"],
-  ["2027-01-04", "Presidential Day — U closed",         "off"],
-  ["2027-01-05", "Presidential Day — U closed",         "off"],
-  ["2027-01-11", "Winter classes begin, Y resume",      "utm"],
-  ["2027-03-15", "Letter of Permission deadline",       "utm"],
-  ["2027-03-26", "Good Friday — U closed",              "off"],
-  ["2027-04-12", "Classes end (Y and S)",               "utm"],
-  ["2027-04-13", "Study break begins",                  "utm"],
-  ["2027-04-14", "Final exams begin",                   "utm"],
-  ["2027-04-29", "Final exams end",                     "utm"],
-  ["2027-04-30", "Deferred exams begin",                "utm"],
-  ["2027-05-05", "Deferred exams end",                  "utm"]
+  ["2026-09-02", "Late registration period for F & Y courses ($54)", "utm", "2026-09-21"],
+  ["2026-09-08", "Classes begin in F & Y courses", "utm"],
+  ["2026-09-21", "Waitlist ends for F & Y courses", "utm"],
+  ["2026-09-21", "Last day to add or change a section in an F or Y course on ACORN", "utm"],
+  ["2026-09-21", "Course Enrolment Exception Form deadline — course overload (F & Y)", "utm"],
+  ["2026-09-21", "Course Enrolment Exception Form deadline — repeated course (F & Y)", "utm"],
+  ["2026-09-21", "Last day to drop F and/or Y courses for a 100% course fee refund", "utm"],
+  ["2026-09-21", "Deregulated fees: last day to cancel all courses for a 100% program fee refund", "utm"],
+  ["2026-09-21", "BCOM: last day to drop full to part-time for a 100% program fee refund", "utm"],
+  ["2026-09-21", "Deregulated (non-BCOM): last day to drop F & Y before Fall course load locks", "utm"],
+  ["2026-09-22", "First day to request Second Attempt for Credit (F or Y)", "utm"],
+  ["2026-09-22", "First day to request or cancel Credit/No Credit (F or Y)", "utm"],
+  ["2026-09-30", "Deadline to pay Fall term fees in full", "utm"],
+  ["2026-10-12", "Thanksgiving Day — University closed", "off"],
+  ["2026-10-13", "Last day to drop an F course for a 50% course fee refund", "utm"],
+  ["2026-10-15", "Monthly service charges begin on outstanding Fall balances", "utm"],
+  ["2026-10-26", "Reading Week", "off", "2026-10-30"],
+  ["2026-11-01", "Deadline to apply for a Letter of Permission (Winter term)", "utm"],
+  ["2026-11-10", "Last day to drop a Y course for a 50% course fee refund", "utm"],
+  ["2026-11-16", "Spring 2027 Convocation request/withdraw period on ACORN", "utm", "2027-02-01"],
+  ["2026-11-17", "Deadline to drop an F course from academic record and GPA", "utm"],
+  ["2026-11-26", "S term only: deadline to pay minimum amount to register", "utm"],
+  ["2026-11-27", "S term only: submit Proof of Payment Form if paying in this period", "utm", "2026-12-09"],
+  ["2026-11-30", "Deadline to pay Winter term fees in full (registered with payment)", "utm"],
+  ["2026-12-01", "Deadline for visiting students to apply for S courses", "utm"],
+  ["2026-12-08", "F classes end, Y classes break for holidays", "utm"],
+  ["2026-12-08", "Make-up day for Monday classes missed due to Thanksgiving", "utm"],
+  ["2026-12-08", "Deadline to submit/cancel Second Attempt for Credit (F)", "utm"],
+  ["2026-12-08", "Credit/No Credit deadline — F courses at UTSC and St. George", "utm"],
+  ["2026-12-08", "Credit/No Credit deadline — F courses at UTM with a final exam", "utm"],
+  ["2026-12-08", "Deadline to request Late Withdrawal (LWD) for F courses", "utm"],
+  ["2026-12-09", "Study break", "utm"],
+  ["2026-12-09", "S term only: fee deferral deadline on ACORN", "utm"],
+  ["2026-12-10", "Final Exam Period", "utm", "2026-12-22"],
+  ["2026-12-10", "Financial cancellation date (students in S courses only)", "utm"],
+  ["2026-12-11", "Late registration period for S courses ($54)", "utm", "2027-01-22"],
+  ["2026-12-15", "Monthly service charges begin on outstanding Winter balances", "utm"],
+  ["2026-12-24", "Winter break — University closed", "off", "2027-01-05"],
+  ["2027-01-09", "Exam Contingency Day", "utm"],
+  ["2027-01-10", "Deadline to cancel registration with no minimum charge (S only)", "utm"],
+  ["2027-01-11", "Y courses resume, S courses begin", "utm"],
+  ["2027-01-22", "Course Enrolment Exception Form deadline — course overload (S)", "utm"],
+  ["2027-01-22", "Course Enrolment Exception Form deadline — repeated course (S)", "utm"],
+  ["2027-01-24", "Waitlist for S courses ends", "utm"],
+  ["2027-01-24", "Last day to add or change a section in an S course on ACORN", "utm"],
+  ["2027-01-24", "Last day to drop an S course for a 100% course fee refund", "utm"],
+  ["2027-01-24", "BCOM: last day to drop full to part-time for a 50% program fee refund", "utm"],
+  ["2027-01-24", "Deregulated (non-BCOM): last day to drop S before Winter course load locks", "utm"],
+  ["2027-01-25", "First day to request Second Attempt for Credit (S)", "utm"],
+  ["2027-01-25", "First day to request or cancel Credit/No Credit (S)", "utm"],
+  ["2027-01-31", "Deadline to pay Winter term fees if deferred", "utm"],
+  ["2027-02-15", "Family Day — University closed", "off"],
+  ["2027-02-15", "Last day to drop an S course for a 50% course fee refund", "utm"],
+  ["2027-02-15", "Winter term service charges begin on outstanding balances (if deferred)", "utm"],
+  ["2027-02-16", "Reading Week", "off", "2027-02-19"],
+  ["2027-02-16", "Deferred exam period for December exams", "utm", "2027-02-19"],
+  ["2027-02-28", "Deadline to drop a Y course from academic record and GPA", "utm"],
+  ["2027-03-15", "Deadline to apply for a Letter of Permission (Summer session)", "utm"],
+  ["2027-03-21", "Deadline to drop an S course from academic record and GPA", "utm"],
+  ["2027-03-26", "Good Friday — University closed", "off"],
+  ["2027-04-12", "Classes end for Y and S courses", "utm"],
+  ["2027-04-12", "Make-up day for Friday classes missed due to Good Friday", "utm"],
+  ["2027-04-12", "Deadline to submit/cancel Second Attempt for Credit (Y & S)", "utm"],
+  ["2027-04-12", "Credit/No Credit deadline — Y & S courses at UTSC and St. George", "utm"],
+  ["2027-04-12", "Credit/No Credit deadline — Y & S courses at UTM with a final exam", "utm"],
+  ["2027-04-12", "Deadline to request Late Withdrawal (LWD) for Y & S courses", "utm"],
+  ["2027-04-13", "Study break", "utm"],
+  ["2027-04-14", "Final Exam Period", "utm", "2027-04-29"],
+  ["2027-04-29", "Exam Contingency Day", "utm"],
+  ["2027-04-30", "Deferred exam period for S & Y exams", "utm", "2027-05-05"],
+  ["2027-04-30", "Deadline to pay outstanding Fall-Winter fees", "utm"],
+  ["2027-04-30", "Graduating students: proof of payment and clear financial holds", "utm"]
 ];
 
 function renderCal() {
@@ -1089,6 +1152,7 @@ function renderCal() {
       <li>
         <em style="background:${KIND_COLOR[e.kind] || KIND_COLOR.house}"></em>
         <span style="flex:1">${esc(e.label)}${
+          e.span ? `<span class="sub" style="font-size:12.5px"> — ${e.span}</span>` : ""}${
           e.kind === "shop" && e.going.length
             ? `<span class="sub" style="font-size:12.5px"> — ${e.going.map(id => esc(nameOf(id))).join(", ")} going</span>`
             : ""}</span>
@@ -1184,6 +1248,7 @@ function renderCal() {
       <h3 class="sub-h">Add a date</h3>
       <div class="row">
         <label class="stack">Date<input id="evDate" type="date" value="${today}"></label>
+        <label class="stack">Ends (optional)<input id="evTo" type="date"></label>
         <label class="stack">What is it<input id="evLabel" placeholder="Reading week starts"
                data-enter="add-date" style="width:220px"></label>
         <label class="stack">Kind<select id="evKind">
@@ -1193,11 +1258,15 @@ function renderCal() {
       </div>
       <div class="row" style="margin-top:12px">
         <button class="btn" data-action="load-holidays">Fill in ${Y} statutory holidays</button>
-        <button class="btn" data-action="load-utm">Fill in UTM 2026–27 dates</button>
+        <button class="btn" data-action="load-utm">Fill in UTM Fall 2026 – Winter 2027</button>
+        ${ui.clearDates
+          ? `<button class="btn tiny solid" data-action="clear-dates-yes">Delete all ${ll().dates.length} dates?</button>
+             <button class="btn ghost tiny" data-action="clear-dates-no">No</button>`
+          : `<button class="btn ghost tiny" data-action="clear-dates">Clear all dates</button>`}
       </div>
       <p class="locked">Ontario holidays are worked out from the rules, so they're right every year.
-        The UTM dates came from a third-party calendar rather than the registrar — check them against
-        utm.utoronto.ca/registrar/dates.</p>`
+        The UTM dates come from the registrar's Important Dates page for Fall 2026 – Winter 2027.
+        Fee-billing details were left out; add any you need with the form above.</p>`
       : `<p class="locked">Set by the landlord, not by us. Only ${esc(managerName())} can change any of this.</p>`}`;
 }
 
@@ -1274,7 +1343,9 @@ const actions = {
   "add-date": () => {
     const date = val("evDate"), label = val("evLabel");
     if (!date || !label) return toast("Needs a date and a label.");
-    ll().dates.push({ id: uid(), date, label, kind: val("evKind") || "house" });
+    const to = val("evTo");
+    if (to && to < date) return toast("The end date is before the start.");
+    ll().dates.push({ id: uid(), date, label, kind: val("evKind") || "house", to: to || null });
     ui.cal = date.slice(0, 7); saveConfig(); ui.focus = "evLabel"; render();
   },
   "del-date": (el, id) => {
@@ -1291,12 +1362,19 @@ const actions = {
     saveConfig(); render();
     toast(added ? `Added ${added} holidays for ${Y}.` : `${Y} holidays are already in.`);
   },
+  "clear-dates":     () => { ui.clearDates = true;  render(); },
+  "clear-dates-no":  () => { ui.clearDates = false; render(); },
+  "clear-dates-yes": () => {
+    const l = ll(); const n = l.dates.length;
+    l.dates = []; ui.clearDates = false;
+    saveConfig(); render(); toast(`Removed ${n} dates. Birthdays and grocery runs are untouched.`);
+  },
   "load-utm": () => {
     const l = ll();
     let added = 0;
-    UTM_2627.forEach(([date, label, kind]) => {
+    UTM_2627.forEach(([date, label, kind, to]) => {
       if (!l.dates.some(d => d.date === date && d.label === label)) {
-        l.dates.push({ id: uid(), date, label, kind }); added++;
+        l.dates.push({ id: uid(), date, label, kind, to: to || null }); added++;
       }
     });
     saveConfig(); render();

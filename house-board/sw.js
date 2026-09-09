@@ -1,6 +1,6 @@
 // Keeps a copy of the app itself so it opens instantly and still loads on bad
 // wifi. It never caches your data — that always comes from the database.
-const CACHE = "house-board-v9";
+const CACHE = "house-board-v11";
 const SHELL = ["./", "./index.html", "./login.html", "./config.js",
                "./manifest.json", "./icon.png", "./icon-192.png"];
 
