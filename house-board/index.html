@@ -195,6 +195,20 @@
   .cday .ev{font-size:10.5px;line-height:1.35;color:#fff;border-radius:4px;padding:1px 5px;
             white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
   .cday .more{font-size:10px;color:var(--faint);padding-left:2px}
+  button.cday{font:inherit;color:inherit;text-align:left;cursor:pointer;align-items:stretch}
+  button.cday:hover{border-color:var(--faint)}
+  .cday.sel{border-color:var(--ink);box-shadow:0 0 0 2px var(--ink) inset}
+
+  .daybox{background:var(--card);border:1px solid var(--line);border-radius:13px;
+          padding:14px 16px;margin:14px 0 0;max-width:600px}
+  .dayhead{font-family:var(--display);font-weight:700;font-size:16px;margin:0 0 10px}
+  .duty{display:flex;align-items:center;gap:9px;font-size:15px;margin-bottom:6px}
+  .duty .swatch{width:10px;height:20px;border-radius:4px;flex:none}
+  .dayitems{list-style:none;margin:10px 0 0;padding:10px 0 0;border-top:1px solid var(--line)}
+  .dayitems li{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:15px}
+  .dayitems em{width:9px;height:9px;border-radius:50%;flex:none;display:block}
+  .dayitems .src{font-size:11px;color:var(--faint);border:1px solid var(--line);
+                 border-radius:999px;padding:1px 8px;white-space:nowrap}
   .cday .dots{display:flex;gap:3px;flex-wrap:wrap}
   .cday .dots i{width:6px;height:6px;border-radius:50%;display:block}
   .legend{display:flex;flex-wrap:wrap;gap:12px;margin:10px 0 0;font-size:12.5px;color:var(--slate)}
@@ -222,6 +236,9 @@
   .periods .swatch{width:11px;height:22px;border-radius:4px;flex:none}
   .periods .range{color:var(--slate);font-size:13.5px;width:186px;flex:none;
                   font-variant-numeric:tabular-nums}
+  .bdays li{padding:6px 0}
+  .bdays em{width:9px;height:9px;border-radius:50%;flex:none;display:block}
+  .bdays .range{width:88px}
   .periods .nowtag{font-size:11px;font-weight:600;background:var(--ink);color:#fff;
                    padding:2px 8px;border-radius:999px}
   .rules{margin:2px 0 0;padding-left:19px;color:var(--slate);font-size:13px;line-height:1.45}
@@ -282,12 +299,13 @@ const S = {
   trips: [],
   notes: [],
   bookings: [],
+  birthdays: {},          // { memberId: "MM-DD" }
   roster: []              // active members: {id, name, unit, is_manager}
 };
 
 let CODE = null, ME = null, IS_MANAGER = false, MEMBERS = null, UNITS = [];
 const ui = { tab:"cal", res:null, day:isoOf(todayUTC()), offset:0, filter:"open",
-             replyTo:null, editZone:null, cal:null, focus:null };
+             replyTo:null, editZone:null, cal:null, selDay:null, focus:null };
 
 const SB = (SUPABASE_URL && SUPABASE_KEY && window.supabase)
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
@@ -349,11 +367,12 @@ async function loadAll() {
   if (c && c.zones) Object.assign(S.config, c);
   else if (IS_MANAGER) { seedConfig(); await saveConfig(); }
 
-  S.progress = {}; S.trips = []; S.notes = [];
+  S.progress = {}; S.trips = []; S.notes = []; S.birthdays = {};
   (docs.data || []).forEach(r => {
     if (r.key === "progress") S.progress = r.data || {};
     if (r.key === "trips") S.trips = r.data?.list || [];
     if (r.key === "notes") S.notes = r.data?.list || [];
+    if (r.key === "birthdays") S.birthdays = r.data || {};
   });
   S.bookings = bk.data || [];
 
@@ -379,7 +398,7 @@ async function saveConfig() {
 async function saveDoc(key) {
   if (!SHARED) return local.set("hb:solo", S);
   lastWrite = Date.now();
-  const payload = key === "progress" ? S.progress : { list: S[key] };
+  const payload = (key === "progress" || key === "birthdays") ? S[key] : { list: S[key] };
   try { await rpc("save_doc", { p_code: CODE, p_key: key, p_data: payload }); }
   catch (e) { toast(e.message); await loadAll(); render(); }
 }
@@ -821,11 +840,31 @@ const MONTH_NAMES = ["January","February","March","April","May","June",
                      "July","August","September","October","November","December"];
 const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-const KINDS = {
+const KINDS = {                       // the kinds you can pick when adding a date
   off:   { label:"Day off",  color:"var(--c4)" },
   utm:   { label:"UTM",      color:"var(--c5)" },
   house: { label:"House",    color:"var(--c1)" }
 };
+// Grocery runs aren't stored here — they're read straight off the Grocery tab,
+// so posting a run puts it on the calendar and cancelling one takes it off.
+const KIND_COLOR = { off:"var(--c4)", utm:"var(--c5)", house:"var(--c1)",
+                     shop:"var(--c0)", bday:"var(--c3)" };
+
+function dayItems(iso) {
+  const out = ll().dates.filter(d => d.date === iso)
+    .map(d => ({ id:d.id, kind:d.kind || "house", label:d.label, removable:true }));
+  Object.entries(S.birthdays || {}).forEach(([id, md]) => {
+    if (md && iso.slice(5) === md && person(id))
+      out.push({ id: "b" + id, kind: "bday", removable: false,
+                 label: `${nameOf(id)}'s birthday` });
+  });
+  S.trips.filter(t => t.date === iso).forEach(t => out.push({
+    id: t.id, kind: "shop", removable: false,
+    label: `${t.store}${t.time ? " · " + t.time : ""}`,
+    going: t.going || []
+  }));
+  return out;
+}
 
 // The landlord's schedule, as written on the tenancy sheet. Real dates, not a
 // repeating cycle — the two rotations run over different spans and don't line
@@ -980,22 +1019,54 @@ function renderCal() {
   const byDate = {};
   l.dates.forEach(d => (byDate[d.date] = byDate[d.date] || []).push(d));
 
+  const picked = ui.selDay && ui.selDay.startsWith(key) ? ui.selDay
+               : (today.startsWith(key) ? today : null);
+
   let cells = DOW.map(d => `<div class="dow">${d}</div>`).join("");
   for (let i = 0; i < pad; i++) cells += `<div class="cday out"></div>`;
   for (let d = 1; d <= total; d++) {
     const iso = `${Y}-${String(M).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-    const evs = byDate[iso] || [];
-    const shown = evs.slice(0, 3).map(e =>
-      `<span class="ev" style="background:${(KINDS[e.kind] || KINDS.house).color}"
+    const items = dayItems(iso);
+    const shown = items.slice(0, 3).map(e =>
+      `<span class="ev" style="background:${KIND_COLOR[e.kind] || KIND_COLOR.house}"
              title="${esc(e.label)}">${esc(e.label)}</span>`).join("");
-    const more = evs.length > 3 ? `<span class="more">+${evs.length - 3} more</span>` : "";
+    const more = items.length > 3 ? `<span class="more">+${items.length - 3} more</span>` : "";
     const bars = l.rotations.map(rot => activeIn(rot, iso)
       .map(p => `<i style="background:${unitColor(p.unit)}" title="${esc(rot.name)}: ${esc(p.unit)}"></i>`)
       .join("")).join("");
-    cells += `<div class="cday ${iso === today ? "now" : ""}">
+    cells += `<button class="cday ${iso === today ? "now" : ""} ${iso === picked ? "sel" : ""}"
+        data-action="cal-day" data-id="${iso}" aria-label="${esc(iso)}, ${items.length} item${items.length === 1 ? "" : "s"}">
       <span class="n">${d}</span>
       <span class="evs">${shown}${more}</span>
       <span class="bars">${bars}</span>
+    </button>`;
+  }
+
+  // ---- the day you tapped, spelled out in full
+  let dayBox = "";
+  if (picked) {
+    const items = dayItems(picked);
+    const duties = l.rotations.map(rot => activeIn(rot, picked).map(p =>
+      `<div class="duty"><span class="swatch" style="background:${unitColor(p.unit)}"></span>
+        <span><b>${esc(p.unit)}</b>${whoIn(p.unit) ? ` · ${esc(whoIn(p.unit))}` : ""}
+        <span class="sub" style="font-size:12.5px"> — ${esc(rot.name)}</span></span></div>`).join("")).join("");
+    const rows = items.map(e => `
+      <li>
+        <em style="background:${KIND_COLOR[e.kind] || KIND_COLOR.house}"></em>
+        <span style="flex:1">${esc(e.label)}${
+          e.kind === "shop" && e.going.length
+            ? `<span class="sub" style="font-size:12.5px"> — ${e.going.map(id => esc(nameOf(id))).join(", ")} going</span>`
+            : ""}</span>
+        ${e.kind === "shop" ? `<span class="src">Grocery Runs</span>` : ""}
+        ${e.kind === "bday" ? `<span class="src">Birthday</span>` : ""}
+        ${IS_MANAGER && e.removable
+          ? `<button class="btn ghost tiny" data-action="del-date" data-id="${e.id}">Remove</button>` : ""}
+      </li>`).join("");
+    dayBox = `<div class="daybox">
+      <p class="dayhead">${fmtDay(parseISO(picked))}</p>
+      ${duties || ""}
+      ${rows ? `<ul class="dayitems">${rows}</ul>`
+             : `<p class="sub" style="margin:8px 0 0">Nothing else on this day.</p>`}
     </div>`;
   }
 
@@ -1029,19 +1100,6 @@ function renderCal() {
         </div>` : ""}`;
   }).join("");
 
-  // ---- school dates for the shown month
-  const monthEvents = l.dates.filter(d => d.date.startsWith(key))
-                             .sort((a, b) => a.date.localeCompare(b.date));
-  const evRows = monthEvents.map(e => {
-    const k = KINDS[e.kind] || KINDS.house;
-    return `<li>
-      <span class="d">${fmtShort(parseISO(e.date))}</span>
-      <em style="background:${k.color}"></em>
-      <span style="flex:1">${esc(e.label)}</span>
-      ${IS_MANAGER ? `<button class="btn ghost tiny" data-action="del-date" data-id="${e.id}">Remove</button>` : ""}
-    </li>`;
-  }).join("");
-
   return `
     <h2 class="sec">Calendar</h2>
     <p class="lede">The landlord's rotations and the dates worth knowing. Separate from our own cleaning rota.</p>
@@ -1055,16 +1113,37 @@ function renderCal() {
       ${key === today.slice(0,7) ? "" : `<button class="btn ghost tiny" data-action="cal-today">Back to now</button>`}
     </div>
     <div class="calwrap"><div class="cal">${cells}</div></div>
-    <p class="sub" style="margin:8px 0 0;font-size:12.5px">Bars along the bottom of each day are the
-      landlord's rotations, coloured by room.</p>
+    <p class="sub" style="margin:8px 0 0;font-size:12.5px">Tap any day to see everything on it.
+      Bars along the bottom are the landlord's rotations, coloured by room.</p>
+    ${dayBox}
     <div class="legend">
       ${unitList().map(u => `<span><i style="background:${unitColor(u)}"></i>${esc(u)}</span>`).join("")}
     </div>
 
-    ${monthEvents.length ? `<ul class="evlist">${evRows}</ul>`
-      : `<p class="sub" style="margin-top:14px">No dates marked this month.</p>`}
-
     ${rotLists}
+
+    <h3 class="sub-h">Birthdays</h3>
+    ${(() => {
+      const rows = people()
+        .filter(p => S.birthdays[p.id])
+        .sort((a, b) => S.birthdays[a.id].localeCompare(S.birthdays[b.id]))
+        .map(p => {
+          const [m, d] = S.birthdays[p.id].split("-").map(Number);
+          return `<li><em style="background:${KIND_COLOR.bday}"></em>
+            <span class="range">${MON[m-1]} ${d}</span>
+            <span style="flex:1">${esc(p.name)}</span></li>`;
+        }).join("");
+      return rows ? `<ul class="periods bdays">${rows}</ul>`
+                  : `<p class="sub">Nobody has added one yet.</p>`;
+    })()}
+    <div class="row" style="margin-top:10px">
+      <label class="stack">Your birthday
+        <input id="bday" type="date" value="${S.birthdays[ME] ? "2000-" + S.birthdays[ME] : ""}"></label>
+      <button class="btn" data-action="save-bday">Save mine</button>
+      ${S.birthdays[ME] ? `<button class="btn ghost tiny" data-action="clear-bday">Remove mine</button>` : ""}
+    </div>
+    <p class="locked">Only you can set your own. The year isn't kept — just the day, so it comes
+      round every year.</p>
 
     ${IS_MANAGER ? `
       <h3 class="sub-h">Add a date</h3>
@@ -1131,7 +1210,17 @@ const actions = {
   // --- calendar ---
   "cal-prev":  () => { ui.cal = shiftMonth(calKey(), -1); render(); },
   "cal-next":  () => { ui.cal = shiftMonth(calKey(),  1); render(); },
-  "cal-today": () => { ui.cal = null; render(); },
+  "cal-today": () => { ui.cal = null; ui.selDay = null; render(); },
+  "cal-day":   (el, id) => { ui.selDay = ui.selDay === id ? null : id; render(); },
+  "save-bday": () => {
+    const v = val("bday");
+    if (!v) return toast("Pick a date first.");
+    S.birthdays[ME] = v.slice(5);          // MM-DD, the year is nobody's business
+    saveDoc("birthdays"); render(); toast("Birthday saved.");
+  },
+  "clear-bday": () => {
+    delete S.birthdays[ME]; saveDoc("birthdays"); render();
+  },
   "add-period": (el, id) => {
     const rot = ll().rotations.find(r => r.id === id); if (!rot) return;
     const from = val("pf-" + id), to = val("pt-" + id);
