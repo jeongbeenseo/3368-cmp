@@ -321,7 +321,7 @@ const S = {
 let CODE = null, ME = null, ROLE = "member", IS_MANAGER = false, IS_GUEST = false,
     MEMBERS = null, UNITS = [];
 const ui = { tab:"cal", res:null, day:isoOf(todayUTC()), offset:0, filter:"open",
-             replyTo:null, editZone:null, cal:null, selDay:null, q:"", clearDates:false, editCode:null, pendingCode:null, focus:null };
+             replyTo:null, editZone:null, cal:null, selDay:null, q:"", caret:null, clearDates:false, editCode:null, pendingCode:null, focus:null };
 
 const SB = (SUPABASE_URL && SUPABASE_KEY && window.supabase)
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
@@ -1360,7 +1360,16 @@ function render() {
         id === "house" && waiting ? ` (${waiting})` : ""}</button>`).join("")}</nav>
     <main>${body}</main>`;
 
-  if (ui.focus) { const el = document.getElementById(ui.focus); if (el) el.focus(); ui.focus = null; }
+  if (ui.focus) {
+    const el = document.getElementById(ui.focus);
+    if (el) {
+      el.focus();
+      if (ui.caret != null && el.setSelectionRange) {
+        try { el.setSelectionRange(ui.caret, ui.caret); } catch (e) {}
+      }
+    }
+    ui.focus = null; ui.caret = null;
+  }
 }
 
 const val = id => (document.getElementById(id) || {}).value?.trim() || "";
@@ -1672,7 +1681,8 @@ document.addEventListener("input", e => {
   const el = e.target.closest("[data-input]");
   if (!el || el.dataset.input !== "cal-search") return;
   ui.q = el.value;
-  ui.focus = "calSearch";          // survives the re-render
+  ui.focus = "calSearch";
+  ui.caret = el.selectionStart;    // otherwise focus() drops it back to position 0
   render();
 });
 document.addEventListener("keydown", e => {
