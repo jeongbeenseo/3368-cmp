@@ -175,6 +175,20 @@
                 padding:3px 9px;border-radius:6px;letter-spacing:.12em}
   .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
   .confirming{display:flex;align-items:center;gap:6px;white-space:nowrap}
+  .results{background:var(--card);border:1px solid var(--line);border-radius:13px;
+           padding:13px 16px;margin:0 0 18px;max-width:640px}
+  .hitlist{list-style:none;margin:0;padding:0}
+  .hitlist li{display:flex;align-items:baseline;gap:10px;padding:7px 0;
+              border-top:1px solid var(--line);font-size:14.5px}
+  .hitlist li:first-child{border-top:0}
+  .hitlist em{width:9px;height:9px;border-radius:50%;flex:none;display:block;
+              position:relative;top:2px}
+  .hitlist .when{color:var(--slate);font-size:13px;width:196px;flex:none;
+                 font-variant-numeric:tabular-nums}
+  @media (max-width:560px){
+    .hitlist li{flex-wrap:wrap}
+    .hitlist .when{width:auto}
+  }
   .status{font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px}
   .status.active{background:#e6f2ea;color:var(--c4)}
   .status.blocked{background:#fbe9ee;color:var(--c3)}
@@ -307,7 +321,7 @@ const S = {
 let CODE = null, ME = null, ROLE = "member", IS_MANAGER = false, IS_GUEST = false,
     MEMBERS = null, UNITS = [];
 const ui = { tab:"cal", res:null, day:isoOf(todayUTC()), offset:0, filter:"open",
-             replyTo:null, editZone:null, cal:null, selDay:null, clearDates:false, editCode:null, pendingCode:null, focus:null };
+             replyTo:null, editZone:null, cal:null, selDay:null, q:"", clearDates:false, editCode:null, pendingCode:null, focus:null };
 
 const SB = (SUPABASE_URL && SUPABASE_KEY && window.supabase)
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
@@ -1086,6 +1100,29 @@ const UTM_2627 = [
   ["2027-04-30", "Graduating students: proof of payment and clear financial holds", "utm"]
 ];
 
+// One row per event, not one per day — a range stays a single line.
+function searchCal(q) {
+  const t = q.trim().toLowerCase();
+  if (!t) return [];
+  const out = [];
+  ll().dates.forEach(d => {
+    if (d.label.toLowerCase().includes(t))
+      out.push({ kind: d.kind || "house", label: d.label, from: d.date, to: d.to || d.date, id: d.id });
+  });
+  S.trips.forEach(tr => {
+    const hay = `${tr.store} ${tr.note || ""} grocery run`.toLowerCase();
+    if (hay.includes(t))
+      out.push({ kind:"shop", label:`${tr.store}${tr.time ? " · " + tr.time : ""}`,
+                 from: tr.date, to: tr.date, id: tr.id });
+  });
+  Object.entries(S.birthdays || {}).forEach(([id, md]) => {
+    const p = person(id); if (!p || !md) return;
+    if (`${p.name} birthday`.toLowerCase().includes(t))
+      out.push({ kind:"bday", label:`${p.name}'s birthday`, md, id:"b" + id });
+  });
+  return out.sort((a, b) => (a.from || a.md).localeCompare(b.from || b.md));
+}
+
 function renderCal() {
   const l = ll();
   const key = calKey();
@@ -1204,6 +1241,29 @@ function renderCal() {
     <p class="lede">The landlord's rotations and the dates worth knowing. Separate from our own cleaning rota.</p>
 
     <div class="rotnows">${nowCards}</div>
+
+    <div class="row" style="margin:0 0 16px">
+      <input id="calSearch" data-input="cal-search" value="${esc(ui.q || "")}"
+             placeholder="Search dates — try &quot;last day&quot; or &quot;exam&quot;"
+             style="flex:1;min-width:220px;max-width:420px" aria-label="Search dates">
+      ${ui.q ? `<button class="btn ghost tiny" data-action="clear-search">Clear</button>` : ""}
+    </div>
+    ${(() => {
+      if (!ui.q) return "";
+      const hits = searchCal(ui.q);
+      if (!hits.length) return `<p class="empty" style="margin-bottom:18px">Nothing matches “${esc(ui.q)}”.</p>`;
+      const rows = hits.map(h => `
+        <li>
+          <em style="background:${KIND_COLOR[h.kind] || KIND_COLOR.house}"></em>
+          <span class="when">${h.md
+            ? `${MON[Number(h.md.split("-")[0]) - 1]} ${Number(h.md.split("-")[1])} · every year`
+            : (h.to && h.to !== h.from ? `${fmtFull(h.from)} ~ ${fmtFull(h.to)}` : fmtFull(h.from))}</span>
+          <span style="flex:1">${esc(h.label)}</span>
+        </li>`).join("");
+      return `<div class="results">
+        <p class="sub" style="margin:0 0 6px">${hits.length} match${hits.length === 1 ? "" : "es"}</p>
+        <ul class="hitlist">${rows}</ul></div>`;
+    })()}
 
     <h3 class="sub-h">${MONTH_NAMES[M-1]} ${Y}</h3>
     <div class="calhead">
@@ -1362,6 +1422,7 @@ const actions = {
     saveConfig(); render();
     toast(added ? `Added ${added} holidays for ${Y}.` : `${Y} holidays are already in.`);
   },
+  "clear-search": () => { ui.q = ""; render(); },
   "clear-dates":     () => { ui.clearDates = true;  render(); },
   "clear-dates-no":  () => { ui.clearDates = false; render(); },
   "clear-dates-yes": () => {
@@ -1606,6 +1667,13 @@ document.addEventListener("change", e => {
   if (!el) return;
   if (IS_GUEST) { shoo(); return render(); }
   if (changers[el.dataset.change]) changers[el.dataset.change](el);
+});
+document.addEventListener("input", e => {
+  const el = e.target.closest("[data-input]");
+  if (!el || el.dataset.input !== "cal-search") return;
+  ui.q = el.value;
+  ui.focus = "calSearch";          // survives the re-render
+  render();
 });
 document.addEventListener("keydown", e => {
   if (e.key !== "Enter") return;
