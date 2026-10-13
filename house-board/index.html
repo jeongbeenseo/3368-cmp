@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>House Board</title>
 
 <!-- Makes it behave like an installed app once it's on a real https:// address -->
@@ -9,11 +9,12 @@
 <meta name="apple-mobile-web-app-title" content="House Board">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#e9ebf1">
+<meta name="theme-color" content="#f5f6f2">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,500;0,6..96,600;1,6..96,500&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>try{var t=JSON.parse(localStorage.getItem("hb:theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
 
 <style>
   :root{
@@ -49,7 +50,7 @@
   button.btn{font:inherit;font-size:14px;font-weight:600;padding:7px 13px;border-radius:9px;
     border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
   button.btn:hover{border-color:var(--faint)}
-  button.btn.solid{background:var(--ink);color:#fff;border-color:var(--ink)}
+  button.btn.solid{background:var(--ink);color:var(--on-ink);border-color:var(--ink)}
   button.btn.ghost{border-color:transparent;background:transparent;color:var(--slate);padding:6px 8px}
   button.btn.ghost:hover{color:var(--ink)}
   button.btn.tiny{font-size:12.5px;padding:4px 9px}
@@ -85,18 +86,18 @@
   .zone.done .tick{color:var(--accent);border-color:var(--accent)}
   .zone.done .tick .box{background:var(--accent);border-color:var(--accent)}
   .cyclebar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px}
-  .pill{font-family:var(--display);font-weight:700;font-size:14px;background:var(--ink);color:#fff;padding:5px 12px;border-radius:999px}
+  .pill{font-family:var(--display);font-weight:700;font-size:14px;background:var(--ink);color:var(--on-ink);padding:5px 12px;border-radius:999px}
 
   /* booking */
   .restabs{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px}
   .restabs button{font:inherit;font-size:14px;font-weight:600;padding:6px 13px;border-radius:999px;
     border:1px solid var(--line);background:var(--card);color:var(--slate);cursor:pointer}
-  .restabs button[aria-current="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+  .restabs button[aria-current="true"]{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
   .days{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px}
   .days button{font:inherit;flex:none;width:60px;padding:7px 0;border-radius:10px;border:1px solid var(--line);
     background:var(--card);color:var(--slate);cursor:pointer;text-align:center;line-height:1.25}
   .days button b{display:block;font-family:var(--display);font-size:16px;color:var(--ink)}
-  .days button[aria-current="true"]{background:var(--ink);border-color:var(--ink);color:#c9cede}
+  .days button[aria-current="true"]{background:var(--ink);border-color:var(--ink);color:var(--faint)}
   .days button[aria-current="true"] b{color:#fff}
   .slots{background:var(--card);border:1px solid var(--line);border-radius:13px;overflow:hidden}
   .slot{display:flex;align-items:center;gap:12px;padding:7px 13px;border-top:1px solid var(--line)}
@@ -130,7 +131,7 @@
   .filters{display:flex;gap:6px;margin:20px 0 12px}
   .filters button{font:inherit;font-size:13px;font-weight:600;padding:5px 12px;border-radius:999px;
     border:1px solid var(--line);background:var(--card);color:var(--slate);cursor:pointer}
-  .filters button[aria-current="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+  .filters button[aria-current="true"]{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
 
   /* housemates */
   .plist{display:flex;flex-direction:column;gap:8px;max-width:430px}
@@ -138,7 +139,7 @@
   .prow input{flex:1}
 
   #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);
-    background:var(--ink);color:#fff;font-size:14px;padding:9px 16px;border-radius:999px;
+    background:var(--ink);color:var(--on-ink);font-size:14px;padding:9px 16px;border-radius:999px;
     opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:9}
   #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 
@@ -151,7 +152,7 @@
 </style>
 
 <style>
-  .role{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--ink);color:#fff}
+  .role{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--ink);color:var(--on-ink)}
   .role.member{background:transparent;color:var(--slate);border:1px solid var(--line)}
   .locked{color:var(--faint);font-size:13px;margin:14px 0 0;max-width:58ch}
   .loading{color:var(--slate);text-align:center;padding:16vh 0;font-size:15px}
@@ -224,7 +225,7 @@
   .dayitems em{width:9px;height:9px;border-radius:50%;flex:none;display:block}
   .dayitems .src{font-size:11px;color:var(--faint);border:1px solid var(--line);
                  border-radius:999px;padding:1px 8px;white-space:nowrap}
-  .cday .dots{display:flex;gap:3px;flex-wrap:wrap}
+  .cday .dots{display:none;gap:3px;flex-wrap:wrap;margin-top:auto}
   .cday .dots i{width:6px;height:6px;border-radius:50%;display:block}
   .legend{display:flex;flex-wrap:wrap;gap:12px;margin:10px 0 0;font-size:12.5px;color:var(--slate)}
   .legend span{display:flex;align-items:center;gap:6px}
@@ -254,13 +255,264 @@
   .bdays li{padding:6px 0}
   .bdays em{width:9px;height:9px;border-radius:50%;flex:none;display:block}
   .bdays .range{width:88px}
-  .periods .nowtag{font-size:11px;font-weight:600;background:var(--ink);color:#fff;
+  .periods .nowtag{font-size:11px;font-weight:600;background:var(--ink);color:var(--on-ink);
                    padding:2px 8px;border-radius:999px}
   .rules{margin:2px 0 0;padding-left:19px;color:var(--slate);font-size:13px;line-height:1.45}
   .rules li{margin-bottom:4px}
   .rules.wide{max-width:62ch;font-size:13.5px;margin:0 0 14px}
   .evlist em{width:8px;height:8px;border-radius:50%;flex:none;display:block}
   .legend em{width:8px;height:8px;border-radius:50%;display:block}
+</style>
+
+<style>
+  /* ===== New look: deep evergreen + brass, light and dark ===== */
+  :root{
+    --ink:#16241e; --slate:#5b6a62; --faint:#8e9a93; --line:#dde3dd; --bg:#f5f6f2; --card:#ffffff;
+    --hover:#eef1ec; --on-ink:#f5f6f2;
+    --forest:#1b3529; --forest-ink:#eef2ea; --gilt:#d4b06e;
+    --brass:#94702f; --brass-soft:#f3ead8;
+    --good:#2e7650; --good-soft:#e3f0e8; --bad:#a8443a; --bad-soft:#f7e5e2;
+    --c0:#3f7f8c; --c1:#9a6a33; --c2:#5f53a6; --c3:#a14a63; --c4:#2f7a52; --c5:#3a65a3; --c6:#857033; --c7:#3f7472;
+    --shadow:0 1px 2px rgba(22,36,30,.06),0 8px 24px rgba(22,36,30,.08);
+    --display:"Bodoni Moda","Didot","Bodoni 72",Georgia,serif;
+    --body:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --ink:#e5eae5; --slate:#9daaa3; --faint:#6e7c75; --line:#26322c; --bg:#0f1613; --card:#16201b;
+    --hover:#1c2722; --on-ink:#0f1613; --forest:#1a2f25; --forest-ink:#e9eee6; --gilt:#d4b06e;
+    --brass:#d3ae6b; --brass-soft:#2b2518; --good:#6cc093; --good-soft:#16291f; --bad:#e08a7f; --bad-soft:#2e1a17;
+    --c0:#79a7b6; --c1:#c39a63; --c2:#9d8fd0; --c3:#d18594; --c4:#6fb08b; --c5:#7d9fd6; --c6:#c2ad6a; --c7:#79b0ac;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35); color-scheme:dark }}
+  :root[data-theme="dark"]{
+    --ink:#e5eae5; --slate:#9daaa3; --faint:#6e7c75; --line:#26322c; --bg:#0f1613; --card:#16201b;
+    --hover:#1c2722; --on-ink:#0f1613; --forest:#1a2f25; --forest-ink:#e9eee6; --gilt:#d4b06e;
+    --brass:#d3ae6b; --brass-soft:#2b2518; --good:#6cc093; --good-soft:#16291f; --bad:#e08a7f; --bad-soft:#2e1a17;
+    --c0:#79a7b6; --c1:#c39a63; --c2:#9d8fd0; --c3:#d18594; --c4:#6fb08b; --c5:#7d9fd6; --c6:#c2ad6a; --c7:#79b0ac;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35); color-scheme:dark }
+
+  html,body{height:100%}
+  body{margin:0;padding:0;overflow:hidden;background:var(--bg);color:var(--ink);font-family:var(--body);
+       font-size:15.5px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .loading{color:var(--slate);text-align:center;padding:30vh 0;font-size:15px}
+
+  /* shell */
+  .board{position:fixed;inset:0;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
+  .appbar{display:flex;align-items:center;gap:10px;padding:14px 28px 8px}
+  .mark{width:34px;height:34px;border-radius:9px;background:var(--forest);color:var(--gilt);display:grid;place-items:center;
+        font-family:var(--display);font-weight:600;font-size:15px;flex:none}
+  .brand{flex:1;min-width:0}
+  .brand b{display:block;font-family:var(--display);font-weight:600;font-size:19px;line-height:1.15}
+  .brand span{font-size:12.5px;color:var(--slate)}
+  .iconbtn{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--card);display:grid;
+           place-items:center;cursor:pointer;color:var(--slate);flex:none;position:relative;padding:0}
+  .iconbtn:hover{color:var(--ink)}
+  .iconbtn .dot{position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:var(--brass)}
+  .ico{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+  nav.tabs{position:relative;display:flex;flex-wrap:nowrap;gap:2px;padding:0 20px;margin:0;border-bottom:1px solid var(--line);
+           overflow-x:auto;scrollbar-width:none;flex:none}
+  nav.tabs::-webkit-scrollbar{display:none}
+  nav.tabs button{font-family:var(--body);font-weight:600;font-size:14px;color:var(--slate);border:0;background:none;
+                  padding:10px 12px 12px;margin:0;white-space:nowrap;cursor:pointer;border-radius:0}
+  nav.tabs button[aria-current="true"]{color:var(--ink);border:0}
+  nav.tabs .lbl{display:inline-flex;align-items:center;gap:5px}
+  nav.tabs .count{display:inline-grid;place-items:center;min-width:18px;height:18px;border-radius:9px;background:var(--brass);
+                  color:var(--on-ink);font-size:10.5px;padding:0 5px}
+  .ink{position:absolute;left:0;bottom:-1px;height:2px;background:var(--ink);border-radius:2px;
+       transition:transform .3s cubic-bezier(.3,.7,.2,1),width .3s cubic-bezier(.3,.7,.2,1)}
+  .viewport{position:relative;flex:1;overflow:hidden;touch-action:pan-y}
+  .track{display:flex;height:100%;transition:transform .38s cubic-bezier(.25,.8,.25,1)}
+  .track.dragging{transition:none}
+  .panel{flex:0 0 100%;height:100%;overflow-y:auto;overscroll-behavior:contain;padding:24px 28px calc(120px + env(safe-area-inset-bottom,0px))}
+  .panel > .wrap{max-width:960px;margin:0 auto}
+
+  /* type */
+  .eyebrow{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--brass);margin:0}
+  h2.sec{font-family:var(--display);font-weight:500;font-size:30px;line-height:1.1;letter-spacing:-.015em;margin:2px 0 4px;text-wrap:balance}
+  .lede{color:var(--slate);font-size:14.5px;margin:0 0 18px;max-width:62ch}
+  h3.sub-h{font-family:var(--body);font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--slate);margin:28px 0 10px}
+
+  /* controls */
+  button.btn{border-radius:10px;font-family:var(--body)}
+  button.btn.solid{background:var(--forest);border-color:var(--forest);color:var(--forest-ink)}
+  button.btn.brass{background:var(--brass);border-color:var(--brass);color:var(--on-ink)}
+  button.btn.danger{color:var(--bad)}
+  button.btn .ico{width:16px;height:16px;vertical-align:-3px;margin-right:5px}
+  input,select,textarea{border-radius:10px}
+  :focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+
+  /* fixes for colours the old styles hard-coded */
+  .banner,.pending{background:var(--brass-soft);border-color:transparent}
+  .slot.mine{background:var(--brass-soft)}
+  .slot.taken{background:transparent}
+  .members code{background:var(--hover)}
+  .status.active{background:var(--good-soft);color:var(--good)}
+  .status.blocked{background:var(--bad-soft);color:var(--bad)}
+  .zone.done{background:color-mix(in srgb,var(--accent) 9%,var(--card))}
+  .zone,.trip,.post,.slots,.daybox,.rotnow,.results,.card{border-radius:16px}
+  .zone h3,.trip .store{font-family:var(--display);font-weight:500;font-size:22px}
+  .zone::before{width:4px}
+  .days button.past{background:transparent;border-style:dashed}
+  .days button.past b{color:var(--faint)}
+  .days{position:relative}
+  .slot{min-height:46px}
+  .slot.locked{background:var(--hover)}
+  .slot.locked .who{color:var(--slate)}
+  .lockt{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--faint)}
+  .lockt .ico{width:13px;height:13px}
+  .card{background:var(--card);border:1px solid var(--line);padding:18px 20px}
+  .seg{display:inline-flex;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px;gap:2px}
+  .seg button{border:0;background:none;padding:6px 14px;border-radius:999px;font:inherit;font-size:13.5px;font-weight:600;color:var(--slate);cursor:pointer}
+  .seg button[aria-pressed="true"]{background:var(--ink);color:var(--on-ink)}
+  .hist .day h4{margin:0 0 6px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--slate)}
+  .hist .item{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+  .hist .day{margin-bottom:14px}
+  .hist .item:first-of-type{border-top:0}
+  .tn{font-variant-numeric:tabular-nums}
+  .notice{display:flex;gap:9px;align-items:flex-start;font-size:13px;color:var(--slate);background:var(--hover);border-radius:10px;padding:10px 12px}
+  .notice .ico{width:16px;height:16px;margin-top:1px}
+
+  /* meetings */
+  .meetgrid{display:grid;grid-template-columns:1.25fr 1fr;gap:16px;margin-bottom:22px}
+  .next{background:var(--forest);color:var(--forest-ink);border-radius:18px;padding:22px 24px}
+  .next .eyebrow{color:var(--gilt)}
+  .next .when{font-family:var(--display);font-size:34px;font-weight:500;line-height:1.05;margin:8px 0 4px}
+  .next .meta{opacity:.78;font-size:14px}
+  .next .agenda{margin:14px 0 0;padding-top:14px;border-top:1px solid rgba(255,255,255,.14);font-size:15px}
+  .next .agenda span{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.1em;opacity:.6;margin-bottom:2px}
+  .next .row{margin-top:16px}
+  .next button.btn{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.2);color:var(--forest-ink)}
+  .next .remind{display:flex;align-items:center;gap:7px;font-size:13px;opacity:.8;margin-top:12px}
+  .next .remind.gilt{color:var(--gilt);opacity:1}
+  .confirmbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:13.5px;margin-top:12px}
+  .call h4{margin:6px 0 2px;font-family:var(--display);font-weight:500;font-size:22px}
+  .votes{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+  .vote{display:flex;align-items:center;gap:6px;font-size:13px;padding:3px 10px 3px 3px;border-radius:999px;border:1px solid var(--line)}
+  .vote.yes{border-color:var(--good);background:var(--good-soft)}
+  .vote.no{border-color:var(--bad);background:var(--bad-soft)}
+  .vote .st{font-size:12px;font-weight:600;color:var(--faint)}
+  .vote.yes .st{color:var(--good)} .vote.no .st{color:var(--bad)}
+  .bar{height:6px;border-radius:3px;background:var(--hover);overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--good);border-radius:3px}
+  .pl{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px}
+  .pl.brass{background:var(--brass-soft);color:var(--brass)}
+  .pl.plain{background:var(--hover);color:var(--slate)}
+  .sugs{display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;margin-bottom:18px}
+  .sug{display:flex;align-items:center;gap:14px;padding:14px 18px;border:0;border-top:1px solid var(--line);background:none;
+       text-align:left;cursor:pointer;width:100%;font:inherit;color:inherit}
+  .sug:first-child{border-top:0}
+  .sug:hover{background:var(--hover)}
+  .sug .t{flex:1;min-width:0}
+  .sug .t b{display:block;font-weight:600;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sug .t span{display:block;font-size:12px;color:var(--faint);margin-top:1px}
+  .sug .clip{color:var(--faint);display:flex;align-items:center;gap:3px;font-size:12px}
+  .sug .clip .ico{width:14px;height:14px}
+  .kind{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:5px;flex:none;width:72px;text-align:center}
+  .k-rule{background:var(--brass-soft);color:var(--brass)} .k-issue{background:var(--bad-soft);color:var(--bad)}
+  .k-idea{background:var(--good-soft);color:var(--good)} .k-notice{background:var(--hover);color:var(--slate)}
+  .gline{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:6px 0 8px}
+  .gline h3{margin:0}
+  .fabs{position:fixed;right:26px;bottom:calc(26px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px;
+        align-items:center;transition:opacity .25s,transform .25s;z-index:5}
+  .fabs.off{opacity:0;transform:translateY(16px);pointer-events:none}
+  .fab{width:56px;height:56px;border-radius:18px;border:0;background:var(--forest);color:var(--gilt);display:grid;place-items:center;cursor:pointer;box-shadow:var(--shadow);padding:0}
+  .fab.second{width:46px;height:46px;border-radius:15px;background:var(--card);color:var(--ink);border:1px solid var(--line)}
+  .fab .ico{width:22px;height:22px;stroke-width:2}
+
+  /* welcome sheet */
+  .sheet{position:fixed;inset:0;z-index:20;background:var(--forest);color:var(--forest-ink);display:flex;flex-direction:column;
+         transition:transform .5s cubic-bezier(.22,.8,.2,1);touch-action:none;user-select:none;-webkit-user-select:none;
+         padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+  .sheet.dragging{transition:none}
+  .sheet.lifted{transform:translateY(calc(-100% - 60px))}
+  .sheet .wtop{display:flex;align-items:center;gap:10px;padding:22px 28px 0}
+  .sheet .wtop span{font-size:13px;opacity:.7}
+  .sheet .wbody{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 28px;max-width:980px;width:100%;margin:0 auto;gap:28px}
+  .sheet .hello{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--gilt);font-weight:700}
+  .sheet h1{font-family:var(--display);font-weight:500;font-size:64px;line-height:1;margin:8px 0 0;letter-spacing:-.02em;text-wrap:balance}
+  .sheet h1 em{font-style:italic;color:var(--gilt)}
+  .sheet .date{opacity:.7;margin-top:10px;font-size:15px}
+  .wtiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  .wt{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:14px 16px;text-align:left;
+      cursor:pointer;color:inherit;display:flex;flex-direction:column;gap:4px;min-width:0;font:inherit}
+  .wt small{font-size:11px;text-transform:uppercase;letter-spacing:.1em;opacity:.6;font-weight:700}
+  .wt b{font-size:16px;font-weight:600;line-height:1.3}
+  .wt span{font-size:13px;opacity:.7}
+  .wt.hot{border-color:var(--gilt);background:color-mix(in srgb,var(--gilt) 12%,transparent)}
+  .wt.hot small{color:var(--gilt);opacity:1}
+  .grab{display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 0 26px;cursor:grab;border:0;background:none;color:inherit;width:100%;font:inherit}
+  .grab .handle{width:44px;height:5px;border-radius:3px;background:rgba(255,255,255,.35)}
+  .grab span{font-size:13px;opacity:.75;display:flex;align-items:center;gap:6px}
+  .grab .ico{animation:nudge 2.2s ease-in-out infinite}
+  @keyframes nudge{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+
+  /* overlays */
+  .scrim{position:fixed;inset:0;background:rgba(10,18,14,.45);z-index:30;opacity:0;pointer-events:none;transition:opacity .25s}
+  .scrim.on{opacity:1;pointer-events:auto}
+  .modal{position:fixed;z-index:31;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;right:0;top:0;bottom:0;
+         width:min(520px,100%);transform:translateX(102%);transition:transform .35s cubic-bezier(.25,.8,.25,1);box-shadow:var(--shadow)}
+  .modal.on{transform:none}
+  .mhead{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--line)}
+  .mhead b{flex:1;font-size:15px}
+  .mbody{flex:1;overflow-y:auto;padding:22px 24px calc(30px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:16px}
+  .mbody h2{font-family:var(--display);font-weight:500;font-size:28px;line-height:1.15;margin:0;text-wrap:balance}
+  .mbody p{margin:0}
+  .mbody .body{font-size:15.5px;line-height:1.6;white-space:pre-wrap}
+  .files{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+  .file{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card);font-size:12px;min-width:0;color:inherit;text-decoration:none;display:block}
+  .file .th{aspect-ratio:4/3;display:grid;place-items:center;color:var(--faint);background:var(--hover);max-width:100%}
+  .file .th img{width:100%;height:100%;object-fit:cover;display:block}
+  .file .th .ico{width:28px;height:28px}
+  .file .fn{padding:6px 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  label.f{display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:600;color:var(--slate)}
+  label.f input,label.f select,label.f textarea{width:100%}
+  label.chk{display:flex;align-items:center;gap:9px;font-size:14px;color:var(--ink);cursor:pointer}
+  label.chk input{width:18px;height:18px}
+  .mbody textarea{min-height:110px}
+  .kinds{display:flex;flex-wrap:wrap;gap:6px}
+  .kinds button{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:5px 12px;font:inherit;font-size:13px;font-weight:600;color:var(--slate);cursor:pointer}
+  .kinds button[aria-pressed="true"]{background:var(--ink);color:var(--on-ink);border-color:var(--ink)}
+  .drop{border:1.5px dashed var(--line);border-radius:12px;padding:16px;text-align:center;color:var(--slate);font-size:13.5px;cursor:pointer;display:block}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .wide{justify-content:center;padding:11px!important;width:100%}
+  .notif{position:fixed;left:50%;top:calc(12px + env(safe-area-inset-top,0px));z-index:40;width:min(420px,calc(100% - 20px));
+         transform:translate(-50%,-160%);transition:transform .45s cubic-bezier(.22,.8,.2,1);background:var(--card);border:1px solid var(--line);
+         border-radius:18px;padding:12px 14px;display:flex;gap:11px;box-shadow:var(--shadow);cursor:pointer}
+  .notif.on{transform:translate(-50%,0)}
+  .notif b{font-size:13.5px;display:block}
+  .notif p{margin:1px 0 0;font-size:13.5px;color:var(--slate)}
+  .nlist{display:flex;flex-direction:column}
+  .nlist div{padding:11px 0;border-top:1px solid var(--line)}
+  .nlist div:first-child{border-top:0}
+  .nlist b{display:block;font-size:14.5px}
+  #toast{z-index:50;bottom:calc(24px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--on-ink)}
+
+  @media (max-width:719px){
+    .cday .dots{display:flex!important}
+    .appbar{padding:12px 16px 6px}
+    .brand b{font-size:17px}
+    nav.tabs{padding:0 8px}
+    nav.tabs button{padding:9px 10px 11px;font-size:13.5px}
+    .panel{padding:18px 16px calc(130px + env(safe-area-inset-bottom,0px))}
+    h2.sec{font-size:26px}
+    .meetgrid{grid-template-columns:1fr}
+    .next .when{font-size:30px}
+    .kind{width:auto}
+    .sug{padding:13px 14px;gap:11px}
+    .sheet .wtop{padding:22px 20px 0}
+    .sheet .wbody{padding:0 20px;gap:24px}
+    .sheet h1{font-size:46px}
+    .wtiles{grid-template-columns:1fr 1fr;gap:10px}
+    .wt b{font-size:14.5px}
+    .modal{top:auto;left:0;width:100%;height:92%;border-radius:22px 22px 0 0;transform:translateY(102%)}
+    .modal.on{transform:none}
+    .fabs{right:18px;bottom:calc(30px + env(safe-area-inset-bottom,0px))}
+    .two{grid-template-columns:1fr}
+    .cal{min-width:0!important;grid-template-columns:repeat(7,minmax(0,1fr))!important}
+    .cday{min-height:52px!important;padding:4px!important}
+    .cday .evs{display:none!important}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 
 <div class="wrap" id="app"><p class="loading">Opening the board…</p></div>
@@ -315,13 +567,16 @@ const S = {
   notes: [],
   bookings: [],
   birthdays: {},          // { memberId: "MM-DD" }
-  roster: []              // active members: {id, name, unit, is_manager}
+  roster: [],             // active members: {id, name, unit, is_manager}
+  meetings: [], calls: [], votes: [], sugs: [], notices: []
 };
+let MEET_READY = false;
 
 let CODE = null, ME = null, ROLE = "member", IS_MANAGER = false, IS_GUEST = false,
     MEMBERS = null, UNITS = [];
 const ui = { tab:"cal", res:null, day:isoOf(todayUTC()), offset:0, filter:"open",
-             replyTo:null, editZone:null, cal:null, selDay:null, q:"", caret:null, clearDates:false, editCode:null, pendingCode:null, focus:null };
+             replyTo:null, editZone:null, cal:null, selDay:null, q:"", caret:null, clearDates:false, editCode:null, pendingCode:null, focus:null,
+             bookView:"schedule", showPast:false, confirmDel:null, recenter:true };
 
 const SB = (SUPABASE_URL && SUPABASE_KEY && window.supabase)
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
@@ -368,7 +623,7 @@ async function loadAll() {
   const [cfg, docs, bk, ros] = await Promise.all([
     SB.from("config").select("data").eq("id", 1).maybeSingle(),
     SB.from("docs").select("key,data"),
-    SB.from("bookings").select("id,resource_id,day,hour,person_id"),
+    SB.from("bookings").select("*"),
     SB.rpc("roster", { p_code: CODE })
   ]);
 
@@ -393,6 +648,7 @@ async function loadAll() {
   S.bookings = bk.data || [];
 
   if (!ui.res) ui.res = S.config.resources[0]?.id || null;
+  try { await loadMeetings(); } catch (e) { MEET_READY = false; }
 }
 
 async function loadMembers() {
@@ -421,7 +677,7 @@ async function saveDoc(key) {
 
 async function reloadBookings() {
   if (!SHARED) return;
-  const { data } = await SB.from("bookings").select("id,resource_id,day,hour,person_id");
+  const { data } = await SB.from("bookings").select("*");
   if (data) S.bookings = data;
 }
 
@@ -438,6 +694,16 @@ function subscribe() {
     .on("postgres_changes", { event:"*", schema:"public", table:"config" }, bump)
     .on("postgres_changes", { event:"*", schema:"public", table:"docs" }, bump)
     .on("postgres_changes", { event:"*", schema:"public", table:"bookings" }, bump)
+    .on("postgres_changes", { event:"*", schema:"public", table:"meetings" }, bump)
+    .on("postgres_changes", { event:"*", schema:"public", table:"meeting_calls" }, bump)
+    .on("postgres_changes", { event:"*", schema:"public", table:"call_votes" }, bump)
+    .on("postgres_changes", { event:"*", schema:"public", table:"suggestions" }, bump)
+    .on("postgres_changes", { event:"INSERT", schema:"public", table:"notices" }, p => {
+      const n = p.new || {};
+      if (ROLE === "landlord" && !n.landlord) return;
+      if (Date.now() - lastWrite > 1500) alertUser(n.title, n.body);
+      bump();
+    })
     .subscribe();
 }
 
@@ -582,67 +848,6 @@ function renderClean() {
 // ===========================================================================
 const OPEN_HOUR = 6, CLOSE_HOUR = 24;
 const hourLabel = h => String(h).padStart(2, "0") + ":00";
-
-function renderBook() {
-  const res = S.config.resources;
-  const cur = res.find(r => r.id === ui.res) || res[0];
-  if (cur) ui.res = cur.id;
-
-  const tabs = res.map(r =>
-    `<button data-action="pick-res" data-id="${r.id}" aria-current="${r.id === ui.res}">${esc(r.name)}</button>`).join("");
-
-  const today = todayUTC();
-  const days = Array.from({ length: 14 }, (_, i) => addDays(today, i)).map(d => {
-    const iso = isoOf(d);
-    const count = S.bookings.filter(b => b.resource_id === ui.res && b.day === iso).length;
-    return `<button data-action="pick-day" data-id="${iso}" aria-current="${iso === ui.day}">
-      ${d.toLocaleDateString(undefined,{weekday:"short",timeZone:"UTC"})}<b>${d.getUTCDate()}</b>
-      ${count ? count + " booked" : "Free"}</button>`;
-  }).join("");
-
-  let grid = "";
-  if (cur) {
-    const rows = [];
-    for (let h = OPEN_HOUR; h < CLOSE_HOUR; h++) {
-      const b = S.bookings.find(x => x.resource_id === cur.id && x.day === ui.day && x.hour === h);
-      if (!b) {
-        rows.push(`<div class="slot"><span class="hr">${hourLabel(h)}</span><span class="who"></span>
-          <button class="btn tiny" data-action="book" data-id="${h}">Book</button></div>`);
-      } else {
-        const mine = b.person_id === ME;
-        rows.push(`<div class="slot ${mine ? "mine" : "taken"}" style="--tint:${col(pIndex(b.person_id))}12">
-          <span class="hr">${hourLabel(h)}</span>
-          <span class="who">${chip(b.person_id, true)}<span class="unitname">${esc(unitOf(b.person_id))}</span></span>
-          ${mine || IS_MANAGER ? `<button class="btn ghost tiny" data-action="unbook" data-id="${b.id}">Cancel</button>` : ""}
-        </div>`);
-      }
-    }
-    grid = `<div class="slots">${rows.join("")}</div>`;
-  }
-
-  return `
-    <h2 class="sec">Bookings</h2>
-    <p class="lede">Claim an hour on anything the house shares. You can only cancel your own.</p>
-
-    <div class="restabs">${tabs}</div>
-
-    ${cur ? `
-      <div class="days">${days}</div>
-      <p class="sub" style="margin:0 0 10px">${esc(cur.name)} · ${fmtDay(parseISO(ui.day))}</p>
-      ${grid}
-      ${IS_MANAGER ? `<div class="row" style="margin-top:12px">
-        <button class="btn ghost tiny" data-action="del-res" data-id="${cur.id}">Remove ${esc(cur.name)}</button></div>` : ""}`
-      : `<p class="empty">Nothing set up to book yet.</p>`}
-
-    ${IS_MANAGER ? `
-      <h3 class="sub-h">Add something to book</h3>
-      <div class="row">
-        <label class="stack">Name<input id="rName" placeholder="Washing Machine" data-enter="add-res" style="width:220px"></label>
-        <button class="btn solid" data-action="add-res">Add</button>
-      </div>`
-      : `<p class="locked">Book and cancel your own hours Freely. Everyone else's slots are locked to you, and
-         only ${esc(managerName())} can change this list.</p>`}`;
-}
 
 // ===========================================================================
 // Grocery Runs
@@ -897,7 +1102,7 @@ const KINDS = {                       // the kinds you can pick when adding a da
 // Grocery runs aren't stored here — they're read straight off the Grocery tab,
 // so posting a run puts it on the calendar and cancelling one takes it off.
 const KIND_COLOR = { off:"var(--c4)", utm:"var(--c5)", house:"var(--c1)",
-                     shop:"var(--c0)", bday:"var(--c3)" };
+                     shop:"var(--c0)", bday:"var(--c3)", meet:"var(--brass)" };
 
 function dayItems(iso) {
   const out = ll().dates.filter(d => d.to ? (iso >= d.date && iso <= d.to) : d.date === iso)
@@ -907,6 +1112,11 @@ function dayItems(iso) {
     if (md && iso.slice(5) === md && person(id))
       out.push({ id: "b" + id, kind: "bday", removable: false,
                  label: `${nameOf(id)}'s birthday` });
+  });
+  (S.meetings || []).forEach(m => {
+    const st = new Date(m.starts_at);
+    if (localIso(st) === iso) out.unshift({ id: m.id, kind: "meet", removable: false,
+      label: `Group meeting · ${span(st, m.ends_at ? new Date(m.ends_at) : null)}${m.landlord ? " · landlord" : ""}` });
   });
   S.trips.filter(t => t.date === iso).forEach(t => out.push({
     id: t.id, kind: "shop", removable: false,
@@ -1120,6 +1330,12 @@ function searchCal(q) {
     if (`${p.name} birthday`.toLowerCase().includes(t))
       out.push({ kind:"bday", label:`${p.name}'s birthday`, md, id:"b" + id });
   });
+  (S.meetings || []).forEach(m => {
+    if ("group meeting".includes(t) || (m.agenda || "").toLowerCase().includes(t)) {
+      const d = localIso(new Date(m.starts_at));
+      out.push({ kind:"meet", label:`Group meeting${m.agenda ? " · " + m.agenda : ""}`, from:d, to:d, id:m.id });
+    }
+  });
   return out.sort((a, b) => (a.from || a.md).localeCompare(b.from || b.md));
 }
 
@@ -1174,6 +1390,7 @@ function renderCal() {
       <span class="n">${d}</span>
       <span class="evs">${shown}${more}</span>
       <span class="bars">${bars}</span>
+      <span class="dots">${items.map(e => `<i style="background:${KIND_COLOR[e.kind] || KIND_COLOR.house}"></i>`).join("")}</span>
     </button>`;
   }
 
@@ -1195,6 +1412,7 @@ function renderCal() {
             : ""}</span>
         ${e.kind === "shop" ? `<span class="src">Grocery Runs</span>` : ""}
         ${e.kind === "bday" ? `<span class="src">Birthday</span>` : ""}
+        ${e.kind === "meet" ? `<span class="src">Group Meeting</span>` : ""}
         ${IS_MANAGER && e.removable
           ? `<button class="btn ghost tiny" data-action="del-date" data-id="${e.id}">Remove</button>` : ""}
       </li>`).join("");
@@ -1334,43 +1552,11 @@ function renderCal() {
 // Render
 // ===========================================================================
 const TABS = [
-  ["cal","Calendar"], ["clean","Cleaning"], ["book","Bookings"], ["shop","Grocery Runs"],
+  ["cal","Calendar"], ["meet","Group Meeting"], ["clean","Cleaning"], ["book","Bookings"], ["shop","Groceries"],
   ["board","Noticeboard"], ["house","Housemates"]
 ];
-
-function render() {
-  const body = { clean: renderClean, book: renderBook, cal: renderCal, shop: renderShop,
-                 board: renderBoard, house: renderHouse }[ui.tab]();
-  const waiting = IS_MANAGER && MEMBERS ? MEMBERS.filter(m => m.status === "pending").length : 0;
-
-  document.getElementById("app").innerHTML = `
-    <header class="top">
-      <div>
-        <h1>House Board</h1>
-        <p class="sub">${SHARED
-          ? `${esc(HOUSE_NAME)} · ${esc(nameOf(ME))} <span class="role ${IS_MANAGER ? "" : "member"}">${
-              ROLE === "manager" ? "manager" : ROLE === "landlord" ? "landlord"
-              : ROLE === "guest" ? "guest" : esc(unitOf(ME))}</span>`
-          : "Saved on this device only — add your Supabase keys to config.js to share it"}</p>
-      </div>
-      <div class="ident"><button class="btn ghost" data-action="refresh">Refresh</button></div>
-    </header>
-    <nav class="tabs">${TABS.map(([id, label]) =>
-      `<button data-action="tab" data-id="${id}" aria-current="${ui.tab === id}">${label}${
-        id === "house" && waiting ? ` (${waiting})` : ""}</button>`).join("")}</nav>
-    <main>${body}</main>`;
-
-  if (ui.focus) {
-    const el = document.getElementById(ui.focus);
-    if (el) {
-      el.focus();
-      if (ui.caret != null && el.setSelectionRange) {
-        try { el.setSelectionRange(ui.caret, ui.caret); } catch (e) {}
-      }
-    }
-    ui.focus = null; ui.caret = null;
-  }
-}
+const RENDER = { cal: () => renderCal(), meet: () => renderMeet(), clean: () => renderClean(), book: () => renderBook(),
+                 shop: () => renderShop(), board: () => renderBoard(), house: () => renderHouse() };
 
 const val = id => (document.getElementById(id) || {}).value?.trim() || "";
 
@@ -1378,7 +1564,7 @@ const val = id => (document.getElementById(id) || {}).value?.trim() || "";
 // Actions
 // ===========================================================================
 const actions = {
-  tab: (el, id) => { ui.tab = id; ui.replyTo = null; ui.editZone = null; render(); },
+  tab: (el, id) => goTab(id),
   refresh: async () => { await loadAll(); await loadMembers(); render(); toast("Board refreshed."); },
   signout: () => { local.del("hb:code"); location.replace("login.html"); },
 
@@ -1497,7 +1683,7 @@ const actions = {
   },
 
   // --- bookings ---
-  "pick-res": (el, id) => { ui.res = id; render(); },
+  "pick-res": (el, id) => { ui.res = id; ui.recenter = true; render(); },
   "pick-day": (el, id) => { ui.day = id; render(); },
   book: async (el, id) => {
     const hour = Number(id);
@@ -1661,7 +1847,8 @@ const changers = {
 // rather than security.
 const GUEST_MAY = new Set(["tab","refresh","signout","cyc","filter",
                            "cal-prev","cal-next","cal-today","cal-day",
-                           "pick-res","pick-day","edit-zone","reply"]);
+                           "pick-res","pick-day","edit-zone","reply",
+                           "home","notifs","theme","open-sug","close","show-past","bview","allow-notifs","del-meet-no"]);
 const shoo = () => toast("No guests allowed in the house! >:(");
 
 document.addEventListener("click", e => {
@@ -1695,6 +1882,568 @@ document.addEventListener("keydown", e => {
 });
 
 // ===========================================================================
+// Icons, time helpers
+// ===========================================================================
+const ICONS = {
+  home:'<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  moon:'<path d="M20.5 13.3A8.5 8.5 0 1 1 10.7 3.5a6.6 6.6 0 0 0 9.8 9.8z"/>',
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  cal:'<rect x="4" y="5.5" width="16" height="15" rx="2.5"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/>',
+  lock:'<rect x="5.5" y="10.5" width="13" height="10" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/>',
+  up:'<path d="M6 15l6-6 6 6"/>',
+  close:'<path d="M6 6l12 12M18 6L6 18"/>',
+  clip:'<path d="M20 11.5l-8.1 8.1a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8"/>',
+  img:'<rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M4 16l5-4.5 4 3.5 3-2.5 4 3.5"/>',
+  doc:'<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>',
+  bell:'<path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 21h4"/>',
+  trash:'<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/>',
+  check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>'
+};
+const ic = n => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
+const WD = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const WDL = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+const localIso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const fmtD = d => `${WD[d.getDay()]}, ${MON[d.getMonth()]} ${d.getDate()}`;
+const fmtT = d => { let h = d.getHours(); const m = d.getMinutes(), ap = h >= 12 ? "PM" : "AM"; h = h % 12 || 12; return `${h}:${String(m).padStart(2,"0")} ${ap}`; };
+function span(st, en) {
+  if (!en) return fmtT(st);
+  const a = fmtT(st), b = fmtT(en);
+  return (a.slice(-2) === b.slice(-2) ? a.slice(0, -3) : a) + " – " + b;
+}
+const dayWord = d => sameDay(d, new Date()) ? "Today" : sameDay(d, new Date(Date.now() + DAY)) ? "Tomorrow" : fmtD(d);
+const fromInputs = (d, t) => { if (!d || !t) return null; const [y,m,dd] = d.split("-").map(Number), [h,mi] = t.split(":").map(Number); return new Date(y, m-1, dd, h, mi); };
+const toInputs = d => [localIso(d), `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`];
+
+// ===========================================================================
+// Group meetings: data
+// ===========================================================================
+const KIND_LABEL = { rule:"Rule", issue:"Issue", idea:"Idea", notice:"Notice" };
+const mStart = m => new Date(m.starts_at);
+const mEnd = m => m.ends_at ? new Date(m.ends_at) : new Date(mStart(m).getTime() + 2*3600000);
+const meetingsAhead = () => S.meetings.filter(m => mEnd(m) > new Date()).sort((a, b) => mStart(a) - mStart(b));
+const meetingById = id => S.meetings.find(m => m.id === id);
+const openCall = () => S.calls.find(c => c.status === "open" && new Date(c.starts_at) > new Date());
+const voters = c => S.roster.filter(p => p.role === "member" || p.role === "manager" || !p.role || (p.role === "landlord" && c.landlord));
+const voteOf = (c, id) => (S.votes.find(v => v.call_id === c.id && v.member_id === id) || {}).vote || null;
+const fileUrl = f => SB ? SB.storage.from("meeting-files").getPublicUrl(f.path).data.publicUrl : "";
+const authorName = s => (person(s.author_id) || {}).name || s.author_name || "A former housemate";
+
+async function loadMeetings() {
+  if (!SHARED) return;
+  const [m, c, v, s, n] = await Promise.all([
+    SB.from("meetings").select("*").order("starts_at"),
+    SB.from("meeting_calls").select("*").eq("status", "open"),
+    SB.from("call_votes").select("*"),
+    SB.from("suggestions").select("*").order("created_at", { ascending:false }),
+    SB.from("notices").select("*").order("created_at", { ascending:false }).limit(30)
+  ]);
+  MEET_READY = !m.error;
+  S.meetings = m.data || []; S.calls = c.data || []; S.votes = v.data || [];
+  S.sugs = s.data || [];
+  S.notices = (n.data || []).filter(x => ROLE !== "landlord" || x.landlord);
+}
+
+function renderMeet() {
+  if (SHARED && !MEET_READY) return `
+    <p class="eyebrow">Group Meeting</p><h2 class="sec">Almost there</h2>
+    <p class="lede">The meeting tables haven't been added to the database yet. ${IS_MANAGER
+      ? "Run meetings.sql in Supabase → SQL Editor, then refresh." : `Ask ${esc(managerName())} to finish setting it up.`}</p>`;
+  const ahead = meetingsAhead(), next = ahead[0], after = ahead[1], now = new Date();
+  let card;
+  if (next) {
+    const st = mStart(next), en = mEnd(next), live = st <= now;
+    const mins = Math.max(0, Math.round((st - now) / 60000));
+    const until = live ? "happening now" : mins < 60 ? `in ${mins} min` : mins < 1440 ? `in ${Math.floor(mins/60)} h ${mins%60} min` : `in ${Math.round(mins/1440)} days`;
+    const remind = new Date(st.getTime() - 3600000);
+    card = `<section class="next">
+      <p class="eyebrow">Next meeting · ${until}</p>
+      <div class="when">${sameDay(st, now) ? (st.getHours() >= 17 ? "Tonight" : "Today") : fmtD(st)}, ${span(st, next.ends_at ? en : null)}</div>
+      <div class="meta">${fmtD(st)}${next.place ? " · " + esc(next.place) : ""}</div>
+      ${next.landlord ? `<div class="remind gilt">${ic("check")}Landlord is attending</div>` : ""}
+      ${next.agenda ? `<div class="agenda"><span>Agenda</span>${esc(next.agenda)}</div>` : ""}
+      ${!live && remind > now ? `<div class="remind">${ic("bell")}Reminder goes out at ${fmtT(remind)}</div>` : ""}
+      ${IS_MANAGER ? (ui.confirmDel === next.id
+        ? `<div class="confirmbar">Delete this meeting for everyone?
+             <button class="btn tiny" data-action="del-meet" data-id="${next.id}">Yes, delete</button>
+             <button class="btn tiny" data-action="del-meet-no">Keep it</button></div>`
+        : `<div class="row">
+             <button class="btn tiny" data-action="set-meet">${ic("plus")}Set next meeting</button>
+             <button class="btn tiny" data-action="edit-meet" data-id="${next.id}">${ic("edit")}Change</button>
+             <button class="btn tiny" data-action="toggle-ll" data-id="${next.id}">${next.landlord ? "Remove landlord" : "Include landlord"}</button>
+             <button class="btn tiny" data-action="ask-del-meet" data-id="${next.id}">${ic("trash")}Delete</button></div>`) : ""}
+      ${after ? `<p style="opacity:.6;margin:14px 0 0;font-size:13px">After that: ${fmtD(mStart(after))}, ${span(mStart(after), after.ends_at ? mEnd(after) : null)}</p>` : ""}
+    </section>`;
+  } else {
+    card = `<section class="next"><p class="eyebrow">Next meeting</p>
+      <div class="when">Not set yet</div>
+      <div class="meta">The next date is usually decided at the meeting before.</div>
+      ${IS_MANAGER ? `<div class="row"><button class="btn tiny" data-action="set-meet">${ic("plus")}Set next meeting</button></div>` : ""}</section>`;
+  }
+
+  const c = openCall();
+  let side;
+  if (c) {
+    const vs = voters(c), yes = vs.filter(p => voteOf(c, p.id) === "yes").length;
+    const mine = voteOf(c, ME), canVote = vs.some(p => p.id === ME);
+    const rep = meetingById(c.replaces), cs = new Date(c.starts_at);
+    side = `<section class="card call">
+      <div class="gline" style="margin:0"><p class="eyebrow">Early meeting called</p><span class="sub" style="margin:0;font-size:12.5px">by ${esc((person(c.called_by)||{}).name || c.caller_name || "someone")}</span></div>
+      <h4>${fmtD(cs)} · ${span(cs, c.ends_at ? new Date(c.ends_at) : null)}</h4>
+      ${c.note ? `<p class="sub" style="margin:0">${esc(c.note)}</p>` : ""}
+      <div class="row" style="margin-top:8px">${rep ? `<span class="pl plain">Replaces ${fmtD(mStart(rep))}</span>` : ""}${c.landlord ? `<span class="pl brass">Landlord included</span>` : ""}</div>
+      <div class="votes">${vs.map(p => { const v = voteOf(c, p.id);
+        return `<span class="vote ${v || ""}"><span class="badge sm" style="background:${col(pIndex(p.id))}">${esc(initials(p.name))}</span>${esc(p.name)}
+          <span class="st">${v === "yes" ? "Free" : v === "no" ? "Can't" : "Waiting"}</span></span>`; }).join("")}</div>
+      <div class="bar"><i style="width:${vs.length ? yes / vs.length * 100 : 0}%"></i></div>
+      <p class="sub" style="margin:8px 0 14px;font-size:12.5px">${yes} of ${vs.length} free. It goes on the calendar only when everyone says yes${rep ? `, and replaces the ${fmtD(mStart(rep))} meeting` : ""}.</p>
+      <div class="row">
+        ${canVote ? `<button class="btn ${mine === "yes" ? "solid" : ""}" data-action="vote" data-id="yes">${ic("check")}I'm free</button>
+        <button class="btn ${mine === "no" ? "solid" : ""}" data-action="vote" data-id="no">Can't make it</button>` : `<span class="sub" style="margin:0">You don't vote on this one.</span>`}
+        ${c.called_by === ME || IS_MANAGER ? `<button class="btn ghost tiny" data-action="cancel-call">Withdraw</button>` : ""}
+      </div></section>`;
+  } else {
+    side = `<section class="card"><p class="eyebrow">Need to meet sooner?</p>
+      <p class="sub" style="margin:8px 0 14px">Tap the calendar button to suggest an earlier time. Everyone gets a notification and votes on it.</p>
+      <button class="btn" data-action="call">${ic("cal")}Call an early meeting</button></section>`;
+  }
+
+  // suggestions grouped by the meeting they'll be discussed at
+  const row = s => `<button class="sug" data-action="open-sug" data-id="${s.id}">
+      <span class="kind k-${s.kind}">${KIND_LABEL[s.kind] || "Idea"}</span>
+      <span class="t"><b>${esc(s.title)}</b><span>${meetingById(s.meeting_id) ? "Discussed " + fmtD(mStart(meetingById(s.meeting_id))) : "Next meeting"} · ${esc(authorName(s))}</span></span>
+      ${(s.files || []).length ? `<span class="clip">${ic("clip")}${s.files.length}</span>` : ""}</button>`;
+  const groups = ahead.map(m => ({ label:`For ${fmtD(mStart(m))}`, list:S.sugs.filter(s => s.meeting_id === m.id) })).filter(g => g.list.length);
+  const loose = S.sugs.filter(s => !meetingById(s.meeting_id));
+  if (loose.length) groups.push({ label:"For the next meeting", list:loose });
+  const past = S.sugs.filter(s => { const m = meetingById(s.meeting_id); return m && mEnd(m) <= new Date(); });
+  const list = groups.map(g => `<div class="gline"><h3 class="sub-h">${g.label}</h3><span class="sub" style="margin:0;font-size:12px">${g.list.length} item${g.list.length === 1 ? "" : "s"}</span></div>
+    <div class="sugs">${g.list.map(row).join("")}</div>`).join("");
+
+  return `
+    <p class="eyebrow">Group Meeting</p>
+    <h2 class="sec">Talk it through, together</h2>
+    <p class="lede">Post anything the house should decide on. Each suggestion is listed under the meeting it will be discussed at.</p>
+    <div class="meetgrid">${card}${side}</div>
+    ${list || `<p class="empty">No suggestions yet. Tap + to add the first one.</p>`}
+    ${past.length ? `<div class="gline"><h3 class="sub-h">Earlier meetings</h3>
+      <button class="btn ghost tiny" data-action="show-past">${ui.showPast ? "Hide" : `Show ${past.length}`}</button></div>
+      ${ui.showPast ? `<div class="sugs">${past.map(row).join("")}</div>` : ""}` : ""}`;
+}
+
+// ===========================================================================
+// Modals
+// ===========================================================================
+let draft = null;
+function openModal(title, html) {
+  document.getElementById("modal").innerHTML = `<div class="mhead"><button class="iconbtn" data-action="close" aria-label="Close">${ic("close")}</button><b>${title}</b></div><div class="mbody">${html}</div>`;
+  document.getElementById("modal").classList.add("on"); document.getElementById("scrim").classList.add("on");
+}
+function closeModal() { document.getElementById("modal").classList.remove("on"); document.getElementById("scrim").classList.remove("on"); draft = null; }
+const fileTile = f => {
+  const url = f.src || fileUrl(f), img = (f.type || "").startsWith("image/");
+  return `<a class="file" ${f.src ? "" : `href="${esc(url)}" target="_blank" rel="noopener"`}><div class="th">${img ? `<img src="${esc(url)}" alt="" loading="lazy">` : ic("doc")}</div><div class="fn">${esc(f.name)}</div></a>`;
+};
+
+function openSug(id) {
+  const s = S.sugs.find(x => x.id === id); if (!s) return;
+  const can = !IS_GUEST && (s.author_id === ME || IS_MANAGER), m = meetingById(s.meeting_id), at = new Date(s.created_at);
+  openModal("Suggestion", `
+    <div class="row"><span class="kind k-${s.kind}" style="width:auto">${KIND_LABEL[s.kind]}</span>
+      <span class="pl brass">${ic("cal")}${m ? fmtD(mStart(m)) + " meeting" : "Next meeting"}</span></div>
+    <h2>${esc(s.title)}</h2>
+    <div class="row">${s.author_id && person(s.author_id) ? chip(s.author_id, true) : `<b>${esc(authorName(s))}</b>`}
+      <span class="sub" style="margin:0;font-size:12.5px">posted ${fmtD(at)}, ${fmtT(at)}</span></div>
+    ${s.body ? `<p class="body">${esc(s.body)}</p>` : ""}
+    ${(s.files || []).length ? `<div><h3 class="sub-h" style="margin:0 0 8px">Attached</h3><div class="files">${s.files.map(fileTile).join("")}</div></div>` : ""}
+    <div class="notice">${ic("lock")}<span>Suggestions can't be edited once posted. ${can ? (s.author_id === ME ? "You can delete yours." : "As the manager you can delete any suggestion.") : "Only the person who posted it, or the manager, can delete it."}</span></div>
+    ${can ? `<div id="delZone"><button class="btn danger" data-action="ask-del-sug" data-id="${s.id}">${ic("trash")}Delete suggestion</button></div>` : ""}`);
+}
+
+function openNew() {
+  draft = { kind:"rule", files:[] };
+  const opts = meetingsAhead().filter(m => mStart(m) > new Date()).map(m => `<option value="${m.id}">${fmtD(mStart(m))}, ${fmtT(mStart(m))}</option>`).join("");
+  openModal("New suggestion", `
+    <div class="kinds" id="kinds">${Object.entries(KIND_LABEL).map(([k, l]) => `<button aria-pressed="${k === "rule"}" data-action="kind" data-id="${k}">${l}</button>`).join("")}</div>
+    <label class="f">Title<input id="nTitle" maxlength="120" placeholder="e.g. Quiet hours after midnight"></label>
+    <label class="f">Details<textarea id="nBody" placeholder="What's happening, and what do you suggest?"></textarea></label>
+    <label class="f">Discuss at<select id="nMeet">${opts || `<option value="">The next meeting, once it's set</option>`}</select></label>
+    <div><label class="drop" for="nFiles">${ic("clip")} Add photos or documents</label>
+      <input id="nFiles" type="file" multiple accept="image/*,.pdf,.doc,.docx,.txt" hidden>
+      <div class="files" id="nList" style="margin-top:10px"></div></div>
+    <div class="notice">${ic("lock")}<span>Once posted, a suggestion can't be edited. You can still delete it.</span></div>
+    <button class="btn brass wide" data-action="post-sug" id="postSug">Post suggestion</button>`);
+  document.getElementById("nFiles").addEventListener("change", e => {
+    [...e.target.files].forEach(file => {
+      if (file.size > 10 * 1024 * 1024) return toast(`${file.name} is over 10 MB.`);
+      const item = { name:file.name, type:file.type || "application/octet-stream", file };
+      draft.files.push(item);
+      if (item.type.startsWith("image/")) { const r = new FileReader(); r.onload = () => { item.src = r.result; drawDraftFiles(); }; r.readAsDataURL(file); }
+    });
+    e.target.value = ""; drawDraftFiles();
+  });
+}
+const drawDraftFiles = () => { const l = document.getElementById("nList"); if (l && draft) l.innerHTML = draft.files.map(fileTile).join(""); };
+
+function openCallForm() {
+  const nxt = meetingsAhead().find(m => mStart(m) > new Date());
+  openModal("Call an early meeting", `
+    <h2>Suggest an earlier time</h2>
+    <p class="sub">Everyone gets a notification and votes. Once everyone says they're free, it ${nxt ? `replaces the ${fmtD(mStart(nxt))} meeting` : "goes on the calendar"}.</p>
+    <div class="two"><label class="f">Day<input id="cDay" type="date" min="${localIso(new Date())}" value="${localIso(new Date(Date.now() + DAY))}"></label>
+      <label class="f">Starts<input id="cTime" type="time" value="20:00"></label></div>
+    <label class="f">Ends<input id="cEnd" type="time" value="21:00"></label>
+    <label class="chk"><input id="cLand" type="checkbox">Include the landlord (she votes too)</label>
+    <label class="f">Why (optional)<input id="cNote" placeholder="e.g. Need to sort the kitchen schedule"></label>
+    <button class="btn brass wide" data-action="send-call">${ic("bell")}Notify everyone</button>`);
+}
+
+function openSetMeet(id) {
+  const m = id ? meetingById(id) : null;
+  const [d, t] = m ? toInputs(mStart(m)) : [localIso(new Date(Date.now() + 14 * DAY)), "17:00"];
+  const e = m && m.ends_at ? toInputs(new Date(m.ends_at))[1] : (m ? "" : "19:00");
+  openModal(m ? "Change meeting" : "Set next meeting", `
+    <h2>${m ? "Change this meeting" : "Schedule a group meeting"}</h2>
+    <div class="two"><label class="f">Day<input id="sDay" type="date" value="${d}"></label>
+      <label class="f">Starts<input id="sTime" type="time" value="${t}"></label></div>
+    <label class="f">Ends<input id="sEnd" type="time" value="${e}"></label>
+    <label class="f">Where<input id="sPlace" value="${esc(m ? m.place || "" : "Living room")}"></label>
+    <label class="f">Agenda<input id="sAgenda" value="${esc(m ? m.agenda || "" : "")}" placeholder="What will this one cover?"></label>
+    <label class="chk"><input id="sLand" type="checkbox" ${m && m.landlord ? "checked" : ""}>Include the landlord</label>
+    <p class="sub" style="font-size:13px">It shows on the calendar straight away, and everyone gets a reminder an hour before.</p>
+    <button class="btn solid wide" data-action="save-meet" data-id="${m ? m.id : ""}">${m ? "Save changes" : "Add to calendar"}</button>`);
+}
+
+function openNotices() {
+  const list = S.notices.map(n => { const d = new Date(n.created_at);
+    return `<div><b>${esc(n.title)}</b><span class="sub" style="margin:0">${esc(n.body || "")}</span><br><span class="sub" style="margin:0;font-size:12px">${dayWord(d)}, ${fmtT(d)}</span></div>`; }).join("");
+  const perm = "Notification" in window ? Notification.permission : "unsupported";
+  openModal("Notifications", `
+    ${perm === "default" ? `<button class="btn solid wide" data-action="allow-notifs">${ic("bell")}Allow alerts on this device</button>` : ""}
+    ${perm === "denied" ? `<div class="notice">${ic("bell")}<span>Alerts are blocked for this site in your browser settings.</span></div>` : ""}
+    ${/iPhone|iPad/.test(navigator.userAgent) && !navigator.standalone ? `<div class="notice">${ic("bell")}<span>On iPhone, alerts only work after you add the board to your Home Screen: Share → Add to Home Screen.</span></div>` : ""}
+    <div class="nlist">${list || `<p class="sub">Nothing yet.</p>`}</div>`);
+  local.set("hb:seen", Date.now()); drawBell();
+}
+
+// ===========================================================================
+// Group meetings: actions
+// ===========================================================================
+async function act(fn, args, ok) {
+  lastWrite = Date.now();
+  try { const r = await rpc(fn, Object.assign({ p_code: CODE }, args)); await loadMeetings(); render(); if (ok) toast(ok); return r ?? true; }
+  catch (e) { toast(e.message); await loadMeetings(); render(); return false; }
+}
+Object.assign(actions, {
+  close: () => closeModal(),
+  "open-sug": (el, id) => openSug(id),
+  "show-past": () => { ui.showPast = !ui.showPast; render(); },
+  kind: (el, id) => { if (!draft) return; draft.kind = id; document.querySelectorAll("#kinds button").forEach(b => b.setAttribute("aria-pressed", b === el)); },
+  "ask-del-sug": (el, id) => { document.getElementById("delZone").innerHTML = `<div class="confirmbar">Delete this for everyone? It can't be undone.
+      <button class="btn tiny danger" data-action="del-sug" data-id="${id}">Delete</button><button class="btn tiny" data-action="close">Keep</button></div>`; },
+  "del-sug": async (el, id) => { closeModal(); await act("delete_suggestion", { p_id:id }, "Suggestion deleted."); },
+  "post-sug": async () => {
+    const title = val("nTitle"); if (!title) { toast("Give it a title first."); return document.getElementById("nTitle").focus(); }
+    const btn = document.getElementById("postSug"); btn.disabled = true; btn.textContent = draft.files.length ? "Uploading…" : "Posting…";
+    const files = [];
+    try {
+      for (const f of draft.files) {
+        const safe = f.name.replace(/[^\w.\-]+/g, "_").slice(-80);
+        const path = `${(crypto.randomUUID ? crypto.randomUUID() : uid() + uid())}/${safe}`;
+        const { error } = await SB.storage.from("meeting-files").upload(path, f.file, { contentType: f.type });
+        if (error) throw new Error(`Couldn't upload ${f.name}: ${error.message}`);
+        files.push({ path, name: f.name, type: f.type });
+      }
+    } catch (e) { btn.disabled = false; btn.textContent = "Post suggestion"; return toast(e.message); }
+    const ok = await act("add_suggestion", { p_kind: draft.kind, p_title: title, p_body: val("nBody"), p_files: files, p_meeting: val("nMeet") || null }, "Posted to the meeting list.");
+    if (ok) closeModal(); else { btn.disabled = false; btn.textContent = "Post suggestion"; }
+  },
+  call: () => { if (openCall_()) return; openCallForm(); },
+  "send-call": async () => {
+    const st = fromInputs(val("cDay"), val("cTime")); if (!st) return toast("Pick a day and a start time.");
+    const en = val("cEnd") ? fromInputs(val("cDay"), val("cEnd")) : null;
+    const ok = await act("call_meeting", { p_starts: st.toISOString(), p_ends: en ? en.toISOString() : null, p_note: val("cNote"), p_landlord: document.getElementById("cLand").checked }, "Everyone has been notified.");
+    if (ok) closeModal();
+  },
+  vote: async (el, id) => { const c = openCall(); if (!c) return; const r = await act("vote_call", { p_call: c.id, p_vote: id }); if (r === "passed") toast("Everyone's free. The meeting has moved."); else if (r) toast(id === "yes" ? "Marked as free." : "Marked as can't make it."); },
+  "cancel-call": async () => { const c = openCall(); if (c) await act("cancel_call", { p_call: c.id }, "Call withdrawn."); },
+  "set-meet": () => openSetMeet(null),
+  "edit-meet": (el, id) => openSetMeet(id),
+  "save-meet": async (el) => {
+    const st = fromInputs(val("sDay"), val("sTime")); if (!st) return toast("Pick a day and a start time.");
+    const en = val("sEnd") ? fromInputs(val("sDay"), val("sEnd")) : null;
+    const ok = await act("set_meeting", { p_id: el.dataset.id || null, p_starts: st.toISOString(), p_ends: en ? en.toISOString() : null,
+      p_place: val("sPlace"), p_agenda: val("sAgenda"), p_landlord: document.getElementById("sLand").checked }, el.dataset.id ? "Meeting updated." : "Meeting added to the calendar.");
+    if (ok) closeModal();
+  },
+  "toggle-ll": async (el, id) => { const m = meetingById(id); if (!m) return;
+    await act("set_meeting", { p_id: m.id, p_starts: m.starts_at, p_ends: m.ends_at, p_place: m.place, p_agenda: m.agenda, p_landlord: !m.landlord }, m.landlord ? "Landlord removed from this meeting." : "Landlord invited."); },
+  "ask-del-meet": (el, id) => { ui.confirmDel = id; render(); },
+  "del-meet-no": () => { ui.confirmDel = null; render(); },
+  "del-meet": async (el, id) => { ui.confirmDel = null; await act("delete_meeting", { p_id: id }, "Meeting deleted. Its suggestions moved to the next one."); },
+  notifs: () => openNotices(),
+  "allow-notifs": async () => { try { await Notification.requestPermission(); } catch (e) {} openNotices(); },
+  bview: (el, id) => { ui.bookView = id; render(); },
+  home: () => { renderWelcome(); setLift(false); },
+  theme: () => { const d = isDark(); document.documentElement.dataset.theme = d ? "light" : "dark"; local.set("hb:theme", d ? "light" : "dark"); drawTheme(); }
+});
+function openCall_() { if (openCall()) { goTab("meet"); toast("There's already an early meeting call open. Vote on that one."); return true; } return false; }
+
+// ===========================================================================
+// Bookings (with history)
+// ===========================================================================
+const bookName = b => (person(b.person_id) || {}).name || b.person_name || "A former housemate";
+const hourOver = (day, h) => { const t = isoOf(todayUTC()); return day < t || (day === t && h < new Date().getHours()); };
+
+function renderBook() {
+  const res = S.config.resources;
+  const cur = res.find(r => r.id === ui.res) || res[0];
+  if (cur) ui.res = cur.id;
+  const tabs = res.map(r => `<button data-action="pick-res" data-id="${r.id}" aria-current="${r.id === ui.res}">${esc(r.name)}</button>`).join("");
+  const view = `<div class="seg"><button aria-pressed="${ui.bookView !== "history"}" data-action="bview" data-id="schedule">Schedule</button><button aria-pressed="${ui.bookView === "history"}" data-action="bview" data-id="history">History</button></div>`;
+  const today = isoOf(todayUTC());
+  let body = "";
+  if (cur && ui.bookView === "history") {
+    const past = S.bookings.filter(b => b.resource_id === cur.id && hourOver(b.day, b.hour))
+      .sort((a, b) => (b.day + String(b.hour).padStart(2, "0")).localeCompare(a.day + String(a.hour).padStart(2, "0")));
+    const runs = [];
+    past.forEach(b => { const r = runs[runs.length - 1], nm = bookName(b);
+      if (r && r.day === b.day && r.name === nm && r.from === b.hour + 1) r.from = b.hour;
+      else runs.push({ day:b.day, name:nm, pid:b.person_id, from:b.hour, to:b.hour + 1 }); });
+    const days = [...new Set(runs.map(r => r.day))];
+    body = `<div class="card hist">${days.map(d => `<div class="day"><h4>${fmtDay(parseISO(d))}</h4>
+      ${runs.filter(r => r.day === d).map(r => `<div class="item">${person(r.pid) ? chip(r.pid, true) : `<b>${esc(r.name)}</b>`}
+        <span style="flex:1" class="unitname">${person(r.pid) ? esc(unitOf(r.pid)) : ""}</span>
+        <span class="tn sub" style="margin:0">${hourLabel(r.from)} – ${hourLabel(r.to % 24)}</span></div>`).join("")}</div>`).join("")
+      || `<p class="sub" style="margin:0">No past bookings for ${esc(cur.name)} yet.</p>`}</div>
+      <div class="notice" style="margin-top:12px">${ic("lock")}<span>Past bookings are kept as a record so the house can see who used what. Nobody can change or cancel them, including the manager.</span></div>`;
+  } else if (cur) {
+    const days = Array.from({ length: 21 }, (_, i) => addDays(todayUTC(), i - 7)).map(d => {
+      const iso = isoOf(d), past = iso < today;
+      const count = S.bookings.filter(b => b.resource_id === ui.res && b.day === iso).length;
+      return `<button class="${past ? "past" : ""}" data-action="pick-day" data-id="${iso}" aria-current="${iso === ui.day}">
+        ${iso === today ? "Today" : d.toLocaleDateString(undefined, { weekday:"short", timeZone:"UTC" })}<b>${d.getUTCDate()}</b>
+        ${past ? (count ? count + " used" : "—") : count ? count + " booked" : "Free"}</button>`;
+    }).join("");
+    const rows = [];
+    for (let h = OPEN_HOUR; h < CLOSE_HOUR; h++) {
+      const b = S.bookings.find(x => x.resource_id === cur.id && x.day === ui.day && x.hour === h), over = hourOver(ui.day, h);
+      const who = b ? `${person(b.person_id) ? chip(b.person_id, true) : `<b>${esc(bookName(b))}</b>`}<span class="unitname">${esc(unitOf(b.person_id))}</span>` : "";
+      if (over) rows.push(`<div class="slot locked"><span class="hr">${hourLabel(h)}</span><span class="who">${who || `<span class="sub" style="margin:0">Not used</span>`}</span><span class="lockt">${ic("lock")}Past</span></div>`);
+      else if (!b) rows.push(`<div class="slot"><span class="hr">${hourLabel(h)}</span><span class="who"></span><button class="btn tiny" data-action="book" data-id="${h}">Book</button></div>`);
+      else { const mine = b.person_id === ME;
+        rows.push(`<div class="slot ${mine ? "mine" : ""}"><span class="hr">${hourLabel(h)}</span><span class="who">${who}</span>
+          ${mine || IS_MANAGER ? `<button class="btn ghost tiny" data-action="unbook" data-id="${b.id}">Cancel</button>` : ""}</div>`); }
+    }
+    body = `<div class="days" id="days" data-noswipe>${days}</div>
+      <p class="sub" style="margin:0 0 10px">${esc(cur.name)} · ${fmtDay(parseISO(ui.day))}${ui.day < today ? " · view only" : ""}</p>
+      <div class="slots">${rows.join("")}</div>`;
+  }
+  return `
+    <p class="eyebrow">Bookings</p>
+    <h2 class="sec">Shared machines</h2>
+    <p class="lede">Claim an hour on anything the house shares. Past days stay visible so everyone can see who used what.</p>
+    <div class="row" style="justify-content:space-between;margin-bottom:14px"><div class="restabs" style="margin:0">${tabs}</div>${cur ? view : ""}</div>
+    ${cur ? body : `<p class="empty">Nothing set up to book yet.</p>`}
+    ${IS_MANAGER && cur && ui.bookView !== "history" ? `<div class="row" style="margin-top:12px">
+      <button class="btn ghost tiny" data-action="del-res" data-id="${cur.id}">Remove ${esc(cur.name)}</button></div>` : ""}
+    ${IS_MANAGER ? `
+      <h3 class="sub-h">Add something to book</h3>
+      <div class="row">
+        <label class="stack">Name<input id="rName" placeholder="Washing Machine" data-enter="add-res" style="width:220px"></label>
+        <button class="btn solid" data-action="add-res">Add</button>
+      </div>`
+      : `<p class="locked">Book and cancel your own upcoming hours. Only ${esc(managerName())} can change this list.</p>`}`;
+}
+
+// ===========================================================================
+// Shell: tabs, swipe, welcome sheet, theme, alerts
+// ===========================================================================
+const isMobile = () => innerWidth < 720;
+let SHELL = false;
+function buildShell() {
+  document.getElementById("app").outerHTML = `
+    <div class="board" id="app">
+      <div class="appbar">
+        <div class="mark">HB</div>
+        <div class="brand"><b>House Board</b><span id="who"></span></div>
+        <button class="iconbtn" data-action="home" aria-label="Welcome screen" title="Welcome screen">${ic("home")}</button>
+        <button class="iconbtn" data-action="notifs" aria-label="Notifications" title="Notifications" id="bell">${ic("bell")}</button>
+        <button class="iconbtn" data-action="theme" aria-label="Light or dark mode" title="Light / dark" id="themeBtn"></button>
+        <button class="iconbtn" data-action="refresh" aria-label="Refresh" title="Refresh" style="display:none"></button>
+      </div>
+      <nav class="tabs" id="tabs" role="tablist"></nav>
+      <div class="viewport" id="viewport"><div class="track" id="track"></div></div>
+      <div class="fabs off" id="fabs">
+        <button class="fab second" data-action="call" aria-label="Call an early meeting" title="Call an early meeting">${ic("cal")}</button>
+        <button class="fab" data-action="new-sug" aria-label="New suggestion" title="New suggestion">${ic("plus")}</button>
+      </div>
+    </div>
+    <div class="sheet" id="sheet">
+      <div class="wtop"><div class="mark">HB</div><span>${esc(HOUSE_NAME)}</span></div>
+      <div class="wbody"><div><div class="hello" id="hello"></div><h1 id="welcome"></h1><div class="date" id="wdate"></div></div><div class="wtiles" id="wtiles"></div></div>
+      <button class="grab" id="grab" aria-label="Open the board"><span class="handle"></span><span>${ic("up")}Drag up to open the board</span></button>
+    </div>
+    <div class="scrim" id="scrim" data-action="close"></div>
+    <div class="modal" id="modal" role="dialog" aria-modal="true"></div>
+    <div class="notif" id="notif" data-action="notifs"><div class="mark">HB</div><div style="flex:1;min-width:0"><b id="notifTitle"></b><p id="notifText"></p></div></div>`;
+  SHELL = true;
+  wireSheet(); wireSwipe(); drawTheme();
+  new ResizeObserver(() => { moveInk(); place(); }).observe(document.getElementById("viewport"));
+  if (document.fonts) document.fonts.ready.then(moveInk);
+}
+actions["new-sug"] = () => openNew();
+
+function render() {
+  if (!SHELL) buildShell();
+  const waiting = IS_MANAGER && MEMBERS ? MEMBERS.filter(m => m.status === "pending").length : 0;
+  const nSug = (() => { const n = meetingsAhead()[0]; return n ? S.sugs.filter(s => s.meeting_id === n.id).length : 0; })();
+  document.getElementById("who").innerHTML = SHARED ? `${esc(nameOf(ME))} · ${ROLE === "manager" ? "manager" : ROLE === "landlord" ? "landlord" : ROLE === "guest" ? "guest" : esc(unitOf(ME))}` : "This device only";
+  document.getElementById("tabs").innerHTML = TABS.map(([id, label]) =>
+    `<button data-action="tab" data-id="${id}" role="tab" aria-current="${ui.tab === id}"><span class="lbl">${label}${
+      id === "house" && waiting ? `<span class="count">${waiting}</span>` : ""}${id === "meet" && nSug ? `<span class="count">${nSug}</span>` : ""}</span></button>`).join("") + `<span class="ink" id="ink"></span>`;
+  const scrolls = {}; document.querySelectorAll(".panel").forEach(p => scrolls[p.dataset.tab] = p.scrollTop);
+  const daysScroll = document.getElementById("days") ? document.getElementById("days").scrollLeft : null;
+  document.getElementById("track").innerHTML = TABS.map(([id]) => `<section class="panel" data-tab="${id}" role="tabpanel"><div class="wrap">${RENDER[id]()}</div></section>`).join("");
+  document.querySelectorAll(".panel").forEach(p => p.scrollTop = scrolls[p.dataset.tab] || 0);
+  const days = document.getElementById("days");
+  if (days) { if (daysScroll != null && !ui.recenter) days.scrollLeft = daysScroll;
+    else { const on = days.querySelector('[aria-current="true"]'); if (on) days.scrollLeft = on.offsetLeft - days.clientWidth / 2 + on.offsetWidth / 2; } ui.recenter = false; }
+  place(); moveInk(); renderWelcome(); drawBell();
+
+  if (ui.focus) {
+    const el = document.getElementById(ui.focus);
+    if (el) { el.focus({ preventScroll:true }); if (ui.caret != null && el.setSelectionRange) { try { el.setSelectionRange(ui.caret, ui.caret); } catch (e) {} } }
+    ui.focus = null; ui.caret = null;
+  }
+}
+function place() {
+  const i = Math.max(0, TABS.findIndex(t => t[0] === ui.tab));
+  const tr = document.getElementById("track"); if (tr) tr.style.transform = `translateX(${-i * 100}%)`;
+  const f = document.getElementById("fabs"); if (f) f.classList.toggle("off", ui.tab !== "meet" || IS_GUEST || (SHARED && !MEET_READY));
+}
+function moveInk() {
+  const t = document.getElementById("tabs"); if (!t) return;
+  const b = t.querySelector(`[data-id="${ui.tab}"] .lbl`), ink = document.getElementById("ink"); if (!b || !ink) return;
+  const l = b.getBoundingClientRect(), tr = t.getBoundingClientRect();
+  ink.style.width = l.width + "px"; ink.style.transform = `translateX(${l.left - tr.left + t.scrollLeft}px)`;
+  const btn = b.parentElement;
+  if (btn.offsetLeft < t.scrollLeft || btn.offsetLeft + btn.offsetWidth > t.scrollLeft + t.clientWidth) t.scrollTo({ left: btn.offsetLeft - 40, behavior:"smooth" });
+}
+function goTab(id) { ui.tab = id; ui.replyTo = null; ui.editZone = null; render(); }
+
+// --- swipe between tabs on phones ---
+function wireSwipe() {
+  const vp = document.getElementById("viewport"), track = document.getElementById("track");
+  let sx = null, sy = 0, dx = 0, axis = null, swiped = false;
+  vp.addEventListener("pointerdown", e => {
+    if (!isMobile() || e.target.closest("[data-noswipe],input,textarea,select,.scroll,.calwrap")) return;
+    sx = e.clientX; sy = e.clientY; dx = 0; axis = null; swiped = false;
+  });
+  vp.addEventListener("pointermove", e => {
+    if (sx === null) return;
+    const mx = e.clientX - sx, my = e.clientY - sy;
+    if (!axis && (Math.abs(mx) > 10 || Math.abs(my) > 10)) axis = Math.abs(mx) > Math.abs(my) * 1.2 ? "x" : "y";
+    if (axis !== "x") return;
+    dx = mx; swiped = true;
+    const i = TABS.findIndex(t => t[0] === ui.tab), w = vp.clientWidth;
+    const edge = (i === 0 && dx > 0) || (i === TABS.length - 1 && dx < 0) ? 0.3 : 1;
+    track.classList.add("dragging"); track.style.transform = `translateX(${-i * w + dx * edge}px)`;
+  });
+  const end = () => {
+    if (sx === null) return; sx = null; track.classList.remove("dragging");
+    if (axis === "x") {
+      const i = TABS.findIndex(t => t[0] === ui.tab), w = vp.clientWidth;
+      let n = i; if (dx < -w * 0.2) n = Math.min(TABS.length - 1, i + 1); else if (dx > w * 0.2) n = Math.max(0, i - 1);
+      if (n !== i) return goTab(TABS[n][0]);
+    }
+    place();
+  };
+  vp.addEventListener("pointerup", end); vp.addEventListener("pointercancel", end);
+  // touch fallback: when the browser takes over a horizontal pan, pointercancel fires; touch events keep tracking
+  vp.addEventListener("touchmove", e => { if (axis === "x") e.preventDefault(); }, { passive:false });
+  vp.addEventListener("click", e => { if (swiped) { e.stopPropagation(); e.preventDefault(); swiped = false; } }, true);
+}
+
+// --- welcome sheet ---
+function setLift(on) { const s = document.getElementById("sheet"); s.style.transform = ""; s.classList.toggle("lifted", on); setTimeout(moveInk, 60); }
+function wireSheet() {
+  const sheet = document.getElementById("sheet");
+  let y0 = null, dy = 0, t0 = 0;
+  sheet.addEventListener("pointerdown", e => {
+    if (e.target.closest(".wt")) return;
+    y0 = e.clientY; dy = 0; t0 = performance.now(); sheet.classList.add("dragging");
+    try { sheet.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  sheet.addEventListener("pointermove", e => { if (y0 === null) return; dy = Math.min(0, e.clientY - y0); sheet.style.transform = `translateY(${dy}px)`; });
+  const end = () => {
+    if (y0 === null) return; y0 = null; sheet.classList.remove("dragging");
+    if (Math.abs(dy) < 6) { sheet.style.transform = ""; return; }
+    const v = -dy / Math.max(1, performance.now() - t0);
+    setLift(-dy > sheet.offsetHeight * 0.22 || v > 0.6);
+  };
+  sheet.addEventListener("pointerup", end); sheet.addEventListener("pointercancel", end);
+  document.getElementById("grab").addEventListener("click", () => { if (Math.abs(dy) < 6) setLift(true); });
+  document.getElementById("wtiles").addEventListener("click", e => { const t = e.target.closest("[data-go]"); if (t) { goTab(t.dataset.go); setLift(true); } });
+}
+function renderWelcome() {
+  const h = new Date().getHours(), now = new Date();
+  document.getElementById("hello").textContent = h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  document.getElementById("welcome").innerHTML = `Welcome <em>${esc((nameOf(ME) || "").split(" ")[0])}</em>`;
+  document.getElementById("wdate").textContent = `${WDL[now.getDay()]}, ${MONTH_NAMES[now.getMonth()]} ${now.getDate()}`;
+  const next = meetingsAhead()[0];
+  const n = cycleIndex(), a = assignFor(n), done = S.progress[n] || {};
+  const myZone = S.config.zones.find(z => (a[z.id] || []).includes(ME));
+  const today = isoOf(todayUTC());
+  const mine = S.bookings.filter(b => b.person_id === ME && !hourOver(b.day, b.hour)).sort((x, y) => (x.day + String(x.hour).padStart(2,"0")).localeCompare(y.day + String(y.hour).padStart(2,"0")))[0];
+  const res = mine && S.config.resources.find(r => r.id === mine.resource_id);
+  const open = S.notes.filter(p => !p.resolved);
+  const call = openCall();
+  document.getElementById("wtiles").innerHTML = `
+    <button class="wt hot" data-go="meet"><small>${call ? "Early meeting vote" : "Group meeting"}</small>
+      <b>${call ? fmtD(new Date(call.starts_at)) + ", " + fmtT(new Date(call.starts_at)) : next ? `${sameDay(mStart(next), now) ? (mStart(next).getHours() >= 17 ? "Tonight" : "Today") : fmtD(mStart(next))}, ${fmtT(mStart(next))}` : "Not scheduled"}</b>
+      <span>${call ? (voteOf(call, ME) ? "You've voted" : "Waiting on your vote") : next ? `${S.sugs.filter(s => s.meeting_id === next.id).length} on the agenda` : "Post a suggestion anytime"}</span></button>
+    <button class="wt" data-go="clean"><small>Your cleaning</small><b>${myZone ? esc(myZone.name) : "Nothing this cycle"}</b>
+      <span>${myZone ? (done[myZone.id] ? "Done for this cycle" : "Due by " + fmtShort(addDays(cycleStart(n + 1), -1))) : "Enjoy the break"}</span></button>
+    <button class="wt" data-go="book"><small>Next booking</small><b>${res ? esc(res.name) : "None booked"}</b>
+      <span>${mine ? `${mine.day === today ? "Today" : fmtDay(parseISO(mine.day))} · ${hourLabel(mine.hour)}` : "Tap to book a slot"}</span></button>
+    <button class="wt" data-go="board"><small>Noticeboard</small><b>${open.length} open post${open.length === 1 ? "" : "s"}</b>
+      <span>${open.length ? esc(open.sort((x, y) => y.ts - x.ts)[0].text.slice(0, 40)) : "All quiet"}</span></button>`;
+}
+
+// --- theme ---
+const isDark = () => document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+function drawTheme() {
+  const b = document.getElementById("themeBtn"); if (b) b.innerHTML = ic(isDark() ? "sun" : "moon");
+  const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = isDark() ? "#0f1613" : "#f5f6f2";
+}
+
+// --- alerts ---
+function drawBell() {
+  const b = document.getElementById("bell"); if (!b) return;
+  const seen = local.get("hb:seen") || 0, fresh = S.notices.some(n => new Date(n.created_at).getTime() > seen);
+  b.innerHTML = ic("bell") + (fresh ? `<span class="dot"></span>` : "");
+}
+let notifTimer;
+function alertUser(title, body) {
+  const n = document.getElementById("notif"); if (!n) return;
+  document.getElementById("notifTitle").textContent = title; document.getElementById("notifText").textContent = body || "";
+  n.classList.add("on"); clearTimeout(notifTimer); notifTimer = setTimeout(() => n.classList.remove("on"), 5000);
+  if ("Notification" in window && Notification.permission === "granted" && document.visibilityState !== "visible") {
+    navigator.serviceWorker?.getRegistration().then(r => r ? r.showNotification(title, { body, icon:"icon-192.png" }) : new Notification(title, { body })).catch(() => {});
+  }
+}
+// 1-hour reminder while the board is open (phone push for this comes next)
+function checkReminder() {
+  const m = meetingsAhead().find(x => mStart(x) > new Date()); if (!m) return;
+  const left = mStart(m) - new Date(), key = "hb:reminded:" + m.id + ":" + m.starts_at;
+  if (left <= 3600000 && left > 0 && !local.get(key)) { local.set(key, 1); alertUser("Group meeting in under an hour", `${fmtT(mStart(m))}${m.place ? " · " + m.place : ""}`); }
+}
+setInterval(checkReminder, 60000);
+
+// ===========================================================================
 // Start — the login page owns sign-in; this page just checks and redirects
 // ===========================================================================
 (async function start() {
@@ -1721,6 +2470,7 @@ document.addEventListener("keydown", e => {
   await loadMembers();
   render();
   subscribe();
+  checkReminder();
 })();
 
 if ("serviceWorker" in navigator && location.protocol === "https:") {
