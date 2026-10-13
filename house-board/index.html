@@ -482,6 +482,19 @@
   .notif.on{transform:translate(-50%,0)}
   .notif b{font-size:13.5px;display:block}
   .notif p{margin:1px 0 0;font-size:13.5px;color:var(--slate)}
+  .opt{position:relative;overflow:hidden;display:flex;align-items:center;gap:12px;width:100%;text-align:left;font:inherit;color:inherit;
+       background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 14px;cursor:pointer}
+  .opt:disabled{cursor:default}
+  .opt:not(:disabled):hover{border-color:var(--faint)}
+  .opt i{position:absolute;left:0;top:0;bottom:0;background:var(--hover);z-index:0;transition:width .3s}
+  .opt > span{position:relative;z-index:1}
+  .opt .ot{flex:1;min-width:0}
+  .opt .ot b{display:block;font-size:15px}
+  .opt .ot span{display:block;font-size:12px;color:var(--faint)}
+  .opt .oc{font-weight:700;font-size:15px}
+  .opt.on{border-color:var(--forest);box-shadow:inset 0 0 0 1px var(--forest)}
+  .opt.win{border-color:var(--good)}
+  .opt.win i{background:var(--good-soft)}
   .nlist{display:flex;flex-direction:column}
   .nlist div{padding:11px 0;border-top:1px solid var(--line)}
   .nlist div:first-child{border-top:0}
@@ -571,7 +584,7 @@ const S = {
   roster: [],             // active members: {id, name, unit, is_manager}
   meetings: [], calls: [], votes: [], sugs: [], notices: []
 };
-let MEET_READY = false;
+let MEET_READY = false, POLLS_READY = false;
 
 let CODE = null, ME = null, ROLE = "member", IS_MANAGER = false, IS_GUEST = false,
     MEMBERS = null, UNITS = [];
@@ -699,6 +712,7 @@ function subscribe() {
     .on("postgres_changes", { event:"*", schema:"public", table:"meeting_calls" }, bump)
     .on("postgres_changes", { event:"*", schema:"public", table:"call_votes" }, bump)
     .on("postgres_changes", { event:"*", schema:"public", table:"suggestions" }, bump)
+    .on("postgres_changes", { event:"*", schema:"public", table:"suggestion_votes" }, bump)
     .on("postgres_changes", { event:"INSERT", schema:"public", table:"notices" }, p => {
       const n = p.new || {};
       if (ROLE === "landlord" && !n.landlord) return;
@@ -1930,6 +1944,25 @@ const openCall = () => S.calls.find(c => c.status === "open" && new Date(c.start
 const voters = c => S.roster.filter(p => p.role === "member" || p.role === "manager" || !p.role || (p.role === "landlord" && c.landlord));
 const voteOf = (c, id) => (S.votes.find(v => v.call_id === c.id && v.member_id === id) || {}).vote || null;
 const fileUrl = f => SB ? SB.storage.from("meeting-files").getPublicUrl(f.path).data.publicUrl : "";
+const pollVoters = () => S.roster.filter(p => !p.role || p.role === "member" || p.role === "manager");
+const pollVotes = s => (S.svotes || []).filter(v => v.suggestion_id === s.id);
+const pollDone = s => { const vs = pollVotes(s); return pollVoters().every(p => vs.some(v => v.member_id === p.id)); };
+function pollBlock(s) {
+  const vs = pollVotes(s), voters = pollVoters(), done = pollDone(s), mine = (vs.find(v => v.member_id === ME) || {}).choice;
+  const counts = s.options.map((_, i) => vs.filter(v => v.choice === i).length), top = Math.max(...counts);
+  const winners = s.options.filter((_, i) => counts[i] === top && top > 0);
+  const canVote = !IS_GUEST && voters.some(p => p.id === ME) && !done;
+  const waiting = voters.filter(p => !vs.some(v => v.member_id === p.id)).map(p => p.name);
+  return `<div class="card" style="display:flex;flex-direction:column;gap:10px">
+    <div class="gline" style="margin:0"><p class="eyebrow">Vote · everyone must vote</p><span class="sub" style="margin:0;font-size:12.5px">${vs.length} of ${voters.length} voted</span></div>
+    ${s.options.map((o, i) => { const who = vs.filter(v => v.choice === i).map(v => nameOf(v.member_id));
+      return `<button class="opt ${mine === i ? "on" : ""} ${done && counts[i] === top && top > 0 ? "win" : ""}" ${canVote ? `data-action="vote-sug" data-id="${s.id}" data-id2="${i}"` : "disabled"}>
+        <span class="ot"><b>${esc(o)}</b><span>${who.length ? esc(who.join(", ")) : "No votes yet"}</span></span>
+        <span class="oc tn">${counts[i]}</span><i style="width:${voters.length ? counts[i] / voters.length * 100 : 0}%"></i></button>`; }).join("")}
+    <p class="sub" style="margin:0;font-size:13px">${done
+      ? (winners.length === 1 ? `Everyone has voted. Result: <b>${esc(winners[0])}</b>.` : `Everyone has voted. It's a tie between ${winners.map(esc).join(" and ")}.`)
+      : `Waiting on ${esc(waiting.join(", "))}. You can change your vote until everyone has voted.`}</p></div>`;
+}
 const authorName = s => (person(s.author_id) || {}).name || s.author_name || "A former housemate";
 
 async function loadMeetings() {
@@ -1941,6 +1974,8 @@ async function loadMeetings() {
     SB.from("suggestions").select("*").order("created_at", { ascending:false }),
     SB.from("notices").select("*").order("created_at", { ascending:false }).limit(30)
   ]);
+  const sv = await SB.from("suggestion_votes").select("*");
+  POLLS_READY = !sv.error; S.svotes = sv.data || [];
   MEET_READY = !m.error;
   S.meetings = m.data || []; S.calls = c.data || []; S.votes = v.data || [];
   S.sugs = s.data || [];
@@ -2015,6 +2050,7 @@ function renderMeet() {
   const row = s => `<button class="sug" data-action="open-sug" data-id="${s.id}">
       <span class="kind k-${s.kind}">${KIND_LABEL[s.kind] || "Idea"}</span>
       <span class="t"><b>${esc(s.title)}</b><span>${meetingById(s.meeting_id) ? "Discussed " + fmtD(mStart(meetingById(s.meeting_id))) : "Next meeting"} · ${esc(authorName(s))}</span></span>
+      ${s.options ? `<span class="pl ${pollDone(s) ? "plain" : "brass"}">${pollDone(s) ? "Decided" : `Vote ${pollVotes(s).length}/${pollVoters().length}`}</span>` : ""}
       ${(s.files || []).length ? `<span class="clip">${ic("clip")}${s.files.length}</span>` : ""}</button>`;
   const groups = ahead.map(m => ({ label:`For ${fmtD(mStart(m))}`, list:S.sugs.filter(s => s.meeting_id === m.id) })).filter(g => g.list.length);
   const loose = S.sugs.filter(s => !meetingById(s.meeting_id));
@@ -2058,6 +2094,7 @@ function openSug(id) {
     <div class="row">${s.author_id && person(s.author_id) ? chip(s.author_id, true) : `<b>${esc(authorName(s))}</b>`}
       <span class="sub" style="margin:0;font-size:12.5px">posted ${fmtD(at)}, ${fmtT(at)}</span></div>
     ${s.body ? `<p class="body">${esc(s.body)}</p>` : ""}
+    ${s.options ? `<div id="pollZone">${pollBlock(s)}</div>` : ""}
     ${(s.files || []).length ? `<div><h3 class="sub-h" style="margin:0 0 8px">Attached</h3><div class="files">${s.files.map(fileTile).join("")}</div></div>` : ""}
     <div class="notice">${ic("lock")}<span>Suggestions can't be edited once posted. ${can ? (s.author_id === ME ? "You can delete yours." : "As the manager you can delete any suggestion.") : "Only the person who posted it, or the manager, can delete it."}</span></div>
     ${can ? `<div id="delZone"><button class="btn danger" data-action="ask-del-sug" data-id="${s.id}">${ic("trash")}Delete suggestion</button></div>` : ""}`);
@@ -2070,6 +2107,9 @@ function openNew() {
     <div class="kinds" id="kinds">${Object.entries(KIND_LABEL).map(([k, l]) => `<button aria-pressed="${k === "rule"}" data-action="kind" data-id="${k}">${l}</button>`).join("")}</div>
     <label class="f">Title<input id="nTitle" maxlength="120" placeholder="e.g. Quiet hours after midnight"></label>
     <label class="f">Details<textarea id="nBody" placeholder="What's happening, and what do you suggest?"></textarea></label>
+    ${POLLS_READY ? `<div><label class="f" style="margin-bottom:6px">Vote</label>
+      <div class="kinds" id="pollKind"><button aria-pressed="true" data-action="poll-kind" data-id="none">No vote</button><button aria-pressed="false" data-action="poll-kind" data-id="yesno">Yes / No</button><button aria-pressed="false" data-action="poll-kind" data-id="custom">Custom options</button></div>
+      <div id="pollOpts" style="display:flex;flex-direction:column;gap:8px;margin-top:10px"></div></div>` : ""}
     <label class="f">Discuss at<select id="nMeet">${opts || `<option value="">The next meeting, once it's set</option>`}</select></label>
     <div><label class="drop" for="nFiles">${ic("clip")} Add photos or documents</label>
       <input id="nFiles" type="file" multiple accept="image/*,.pdf,.doc,.docx,.txt" hidden>
@@ -2085,6 +2125,12 @@ function openNew() {
     });
     e.target.value = ""; drawDraftFiles();
   });
+}
+const readPollOpts = () => [...document.querySelectorAll("#pollOpts input")].map(i => i.value);
+function drawPollOpts(list) {
+  const z = document.getElementById("pollOpts"); if (!z) return;
+  z.innerHTML = list.length ? list.map((o, i) => `<input class="pollopt" value="${esc(o)}" placeholder="Option ${i + 1}" maxlength="60">`).join("")
+    + (draft.poll === "custom" ? `<button class="btn ghost tiny" data-action="poll-add" style="align-self:flex-start">${ic("plus")}Add option</button>` : "") : "";
 }
 const drawDraftFiles = () => { const l = document.getElementById("nList"); if (l && draft) l.innerHTML = draft.files.map(fileTile).join(""); };
 
@@ -2145,6 +2191,19 @@ Object.assign(actions, {
   "ask-del-sug": (el, id) => { document.getElementById("delZone").innerHTML = `<div class="confirmbar">Delete this for everyone? It can't be undone.
       <button class="btn tiny danger" data-action="del-sug" data-id="${id}">Delete</button><button class="btn tiny" data-action="close">Keep</button></div>`; },
   "del-sug": async (el, id) => { closeModal(); await act("delete_suggestion", { p_id:id }, "Suggestion deleted."); },
+  "poll-kind": (el, id) => {
+    document.querySelectorAll("#pollKind button").forEach(b => b.setAttribute("aria-pressed", b === el));
+    draft.poll = id; drawPollOpts(id === "yesno" ? ["Yes", "No"] : id === "custom" ? ["", "", ""] : []);
+  },
+  "poll-add": () => { const cur = readPollOpts(); if (cur.length >= 8) return toast("Up to 8 options."); cur.push(""); drawPollOpts(cur); },
+  "vote-sug": async (el, id) => {
+    lastWrite = Date.now();
+    try { await rpc("vote_suggestion", { p_code: CODE, p_id: id, p_choice: Number(el.dataset.id2) }); }
+    catch (e) { toast(e.message); }
+    await loadMeetings(); render();
+    const s = S.sugs.find(x => x.id === id), z = document.getElementById("pollZone");
+    if (s && z) z.innerHTML = pollBlock(s);
+  },
   "post-sug": async () => {
     const title = val("nTitle"); if (!title) { toast("Give it a title first."); return document.getElementById("nTitle").focus(); }
     const btn = document.getElementById("postSug"); btn.disabled = true; btn.textContent = draft.files.length ? "Uploading…" : "Posting…";
@@ -2158,7 +2217,13 @@ Object.assign(actions, {
         files.push({ path, name: f.name, type: f.type });
       }
     } catch (e) { btn.disabled = false; btn.textContent = "Post suggestion"; return toast(e.message); }
-    const ok = await act("add_suggestion", { p_kind: draft.kind, p_title: title, p_body: val("nBody"), p_files: files, p_meeting: val("nMeet") || null }, "Posted to the meeting list.");
+    const args = { p_kind: draft.kind, p_title: title, p_body: val("nBody"), p_files: files, p_meeting: val("nMeet") || null };
+    if (draft.poll && draft.poll !== "none") {
+      const opts = readPollOpts().map(o => o.trim()).filter(Boolean);
+      if (opts.length < 2) { btn.disabled = false; btn.textContent = "Post suggestion"; return toast("A vote needs at least 2 options."); }
+      args.p_options = opts;
+    }
+    const ok = await act("add_suggestion", args, "Posted to the meeting list.");
     if (ok) closeModal(); else { btn.disabled = false; btn.textContent = "Post suggestion"; }
   },
   call: () => { if (openCall_()) return; openCallForm(); },
