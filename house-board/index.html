@@ -2464,6 +2464,25 @@ function checkBookingEnd() {
 }
 setInterval(checkBookingEnd, 20000);
 
+// 11 AM on the last day of the cleaning cycle. If the board is opened later
+// that day, it still shows once.
+function checkCycleEnd() {
+  if (!ME || !S.config.zones.length) return;
+  const n = cycleIndex(), last = isoOf(addDays(cycleStart(n + 1), -1));
+  if (isoOf(todayUTC()) !== last || new Date().getHours() < 11) return;
+  const key = `hb:cycle-end:${S.config.anchor}:${S.config.cycleDays}:${n}`;
+  if (local.get(key)) return;
+  local.set(key, 1);
+  const a = assignFor(n), done = S.progress[n] || {};
+  const mine = S.config.zones.filter(z => (a[z.id] || []).includes(ME));
+  const todo = mine.filter(z => !done[z.id]);
+  alertUser("Cleaning rotation ends today",
+    todo.length ? `${todo.map(z => z.name).join(" and ")} ${todo.length > 1 ? "aren't" : "isn't"} marked cleaned yet. Tick ${todo.length > 1 ? "them" : "it"} off once done.`
+    : mine.length ? `${mine.map(z => z.name).join(" and ")} ${mine.length > 1 ? "are" : "is"} done. Thanks! New areas start tomorrow.`
+    : "New areas start tomorrow. Check the Cleaning tab to see yours.");
+}
+setInterval(checkCycleEnd, 60000);
+
 // ===========================================================================
 // Start — the login page owns sign-in; this page just checks and redirects
 // ===========================================================================
@@ -2491,7 +2510,7 @@ setInterval(checkBookingEnd, 20000);
   await loadMembers();
   render();
   subscribe();
-  checkReminder();
+  checkReminder(); checkBookingEnd(); checkCycleEnd();
 })();
 
 if ("serviceWorker" in navigator && location.protocol === "https:") {
