@@ -1946,7 +1946,7 @@ const voteOf = (c, id) => (S.votes.find(v => v.call_id === c.id && v.member_id =
 const fileUrl = f => SB ? SB.storage.from("meeting-files").getPublicUrl(f.path).data.publicUrl : "";
 const pollVoters = () => S.roster.filter(p => !p.role || p.role === "member" || p.role === "manager");
 const pollVotes = s => (S.svotes || []).filter(v => v.suggestion_id === s.id);
-const pollDone = s => { const vs = pollVotes(s); return pollVoters().every(p => vs.some(v => v.member_id === p.id)); };
+const pollDone = s => { if (s.decided_at) return true; const vs = pollVotes(s); return pollVoters().every(p => vs.some(v => v.member_id === p.id)); };
 function pollBlock(s) {
   const vs = pollVotes(s), voters = pollVoters(), done = pollDone(s), mine = (vs.find(v => v.member_id === ME) || {}).choice;
   const counts = s.options.map((_, i) => vs.filter(v => v.choice === i).length), top = Math.max(...counts);
@@ -1954,12 +1954,12 @@ function pollBlock(s) {
   const canVote = !IS_GUEST && voters.some(p => p.id === ME) && !done;
   const waiting = voters.filter(p => !vs.some(v => v.member_id === p.id)).map(p => p.name);
   return `<div class="card" style="display:flex;flex-direction:column;gap:10px">
-    <div class="gline" style="margin:0"><p class="eyebrow">Vote · everyone must vote</p><span class="sub" style="margin:0;font-size:12.5px">${vs.length} of ${voters.length} voted</span></div>
-    ${s.options.map((o, i) => { const who = vs.filter(v => v.choice === i).map(v => nameOf(v.member_id));
+    <div class="gline" style="margin:0"><p class="eyebrow">Vote · everyone must vote</p><span class="sub" style="margin:0;font-size:12.5px">${done ? `${vs.length} voted` : `${vs.length} of ${voters.length} voted`}</span></div>
+    ${s.options.map((o, i) => { const who = vs.filter(v => v.choice === i).map(v => (person(v.member_id) || {}).name || v.voter_name || "Former housemate");
       return `<button class="opt ${mine === i ? "on" : ""} ${done && counts[i] === top && top > 0 ? "win" : ""}" ${canVote ? `data-action="vote-sug" data-id="${s.id}" data-id2="${i}"` : "disabled"}>
         <span class="ot"><b>${esc(o)}</b><span>${who.length ? esc(who.join(", ")) : "No votes yet"}</span></span>
         <span class="oc tn">${counts[i]}</span><i style="width:${voters.length ? counts[i] / voters.length * 100 : 0}%"></i></button>`; }).join("")}
-    <p class="sub" style="margin:0;font-size:13px">${done
+    <p class="sub" style="margin:0;font-size:13px">${s.result ? `Everyone voted. Result: <b>${esc(s.result)}</b>.` : done
       ? (winners.length === 1 ? `Everyone has voted. Result: <b>${esc(winners[0])}</b>.` : `Everyone has voted. It's a tie between ${winners.map(esc).join(" and ")}.`)
       : `Waiting on ${esc(waiting.join(", "))}. You can change your vote until everyone has voted.`}</p></div>`;
 }
@@ -2050,7 +2050,7 @@ function renderMeet() {
   const row = s => `<button class="sug" data-action="open-sug" data-id="${s.id}">
       <span class="kind k-${s.kind}">${KIND_LABEL[s.kind] || "Idea"}</span>
       <span class="t"><b>${esc(s.title)}</b><span>${meetingById(s.meeting_id) ? "Discussed " + fmtD(mStart(meetingById(s.meeting_id))) : "Next meeting"} · ${esc(authorName(s))}</span></span>
-      ${s.options ? `<span class="pl ${pollDone(s) ? "plain" : "brass"}">${pollDone(s) ? "Decided" : `Vote ${pollVotes(s).length}/${pollVoters().length}`}</span>` : ""}
+      ${s.options ? `<span class="pl ${pollDone(s) ? "plain" : "brass"}">${pollDone(s) ? (s.result ? "Decided: " + esc(s.result) : "Decided") : `Vote ${pollVotes(s).length}/${pollVoters().length}`}</span>` : ""}
       ${(s.files || []).length ? `<span class="clip">${ic("clip")}${s.files.length}</span>` : ""}</button>`;
   const groups = ahead.map(m => ({ label:`For ${fmtD(mStart(m))}`, list:S.sugs.filter(s => s.meeting_id === m.id) })).filter(g => g.list.length);
   const loose = S.sugs.filter(s => !meetingById(s.meeting_id));
@@ -2065,9 +2065,12 @@ function renderMeet() {
     <p class="lede">Post anything the house should decide on. Each suggestion is listed under the meeting it will be discussed at.</p>
     <div class="meetgrid">${card}${side}</div>
     ${list || `<p class="empty">No suggestions yet. Tap + to add the first one.</p>`}
-    ${past.length ? `<div class="gline"><h3 class="sub-h">Earlier meetings</h3>
-      <button class="btn ghost tiny" data-action="show-past">${ui.showPast ? "Hide" : `Show ${past.length}`}</button></div>
-      ${ui.showPast ? `<div class="sugs">${past.map(row).join("")}</div>` : ""}` : ""}`;
+    ${past.length ? `<h3 class="sub-h" style="margin-top:34px">House record · past meetings</h3>
+      <p class="sub" style="margin:-4px 0 10px;font-size:13px">Everything discussed and decided so far. Kept permanently.</p>
+      ${S.meetings.filter(m => mEnd(m) <= new Date()).sort((a, b) => mStart(b) - mStart(a)).map(m => {
+        const l = past.filter(s => s.meeting_id === m.id); if (!l.length) return "";
+        return `<div class="gline"><h3 class="sub-h" style="margin:6px 0 0">${fmtD(mStart(m))}, ${mStart(m).getFullYear()}</h3><span class="sub" style="margin:0;font-size:12px">${l.length} item${l.length === 1 ? "" : "s"}</span></div>
+          <div class="sugs">${l.map(row).join("")}</div>`; }).join("")}` : ""}`;
 }
 
 // ===========================================================================
@@ -2086,7 +2089,9 @@ const fileTile = f => {
 
 function openSug(id) {
   const s = S.sugs.find(x => x.id === id); if (!s) return;
-  const can = !IS_GUEST && (s.author_id === ME || IS_MANAGER), m = meetingById(s.meeting_id), at = new Date(s.created_at);
+  const m = meetingById(s.meeting_id), at = new Date(s.created_at);
+  const onRecord = !!s.decided_at || (m && mEnd(m) <= new Date());
+  const can = !IS_GUEST && (IS_MANAGER || (s.author_id === ME && !onRecord));
   openModal("Suggestion", `
     <div class="row"><span class="kind k-${s.kind}" style="width:auto">${KIND_LABEL[s.kind]}</span>
       <span class="pl brass">${ic("cal")}${m ? fmtD(mStart(m)) + " meeting" : "Next meeting"}</span></div>
@@ -2096,7 +2101,7 @@ function openSug(id) {
     ${s.body ? `<p class="body">${esc(s.body)}</p>` : ""}
     ${s.options ? `<div id="pollZone">${pollBlock(s)}</div>` : ""}
     ${(s.files || []).length ? `<div><h3 class="sub-h" style="margin:0 0 8px">Attached</h3><div class="files">${s.files.map(fileTile).join("")}</div></div>` : ""}
-    <div class="notice">${ic("lock")}<span>Suggestions can't be edited once posted. ${can ? (s.author_id === ME ? "You can delete yours." : "As the manager you can delete any suggestion.") : "Only the person who posted it, or the manager, can delete it."}</span></div>
+    <div class="notice">${ic("lock")}<span>Suggestions can't be edited once posted.${onRecord ? " This one is part of the house record now." : ""} ${can ? (s.author_id === ME && !IS_MANAGER ? "You can delete yours until its meeting is over." : "As the manager you can delete any suggestion.") : onRecord ? "Only the manager can remove it." : "Only the person who posted it, or the manager, can delete it."}</span></div>
     ${can ? `<div id="delZone"><button class="btn danger" data-action="ask-del-sug" data-id="${s.id}">${ic("trash")}Delete suggestion</button></div>` : ""}`);
 }
 
