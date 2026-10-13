@@ -2444,6 +2444,26 @@ function checkReminder() {
 }
 setInterval(checkReminder, 60000);
 
+// 3 minutes before your booking ends: a nudge to clear the machine.
+// Back-to-back hours count as one booking, so it fires once, at the real end.
+function checkBookingEnd() {
+  if (!ME) return;
+  const now = new Date(), today = isoOf(todayUTC());
+  const mine = S.bookings.filter(b => b.person_id === ME && b.day === today);
+  mine.forEach(b => {
+    if (mine.some(x => x.resource_id === b.resource_id && x.hour === b.hour + 1)) return;   // not the last hour
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), b.hour + 1, 0, 0);
+    const left = end - now, key = `hb:ending:${b.id}`;
+    if (left > 0 && left <= 3 * 60000 && !local.get(key)) {
+      local.set(key, 1);
+      const res = (S.config.resources.find(r => r.id === b.resource_id) || {}).name || "Your booking";
+      alertUser(`${res}: ${Math.max(1, Math.round(left / 60000))} min left`,
+                `Your time ends at ${hourLabel((b.hour + 1) % 24)}. Please take your things out for the next person.`);
+    }
+  });
+}
+setInterval(checkBookingEnd, 20000);
+
 // ===========================================================================
 // Start — the login page owns sign-in; this page just checks and redirects
 // ===========================================================================
