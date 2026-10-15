@@ -339,6 +339,9 @@
   button.btn.brass{background:var(--brass);border-color:var(--brass);color:var(--on-ink)}
   button.btn.danger{color:var(--bad)}
   button.btn .ico{width:16px;height:16px;vertical-align:-3px;margin-right:5px}
+  button.btn.discord{background:#5865F2;border-color:#5865F2;color:#fff;font-size:15.5px;padding:12px 22px;border-radius:12px}
+  button.btn.discord:hover{background:#4752C4;border-color:#4752C4}
+  button.btn.discord .ico{width:19px;height:19px;vertical-align:-4px;margin-right:8px}
   input,select,textarea{border-radius:10px}
   :focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 
@@ -999,7 +1002,7 @@ function renderHouse() {
             p.id === ME ? " · you" : ""}</span>
         </div>`).join("")}</div>
       <p class="locked">Only ${esc(managerName())} can add or remove people. If your name or unit is wrong, ask them.</p>
-      <div class="row" style="margin-top:20px"><button class="btn ghost tiny" onclick="location.href='link-discord.html'">Link Discord</button><button class="btn ghost tiny" data-action="signout">Sign out</button></div>`;
+      <div class="row" style="margin-top:22px"><button class="btn discord" onclick="location.href='link-discord.html'">${ic("chat")}Link Discord</button></div>`;
   }
 
   if (!MEMBERS) return `<h2 class="sec">Housemates</h2><p class="sub">Loading…</p>`;
@@ -1093,8 +1096,7 @@ function renderHouse() {
       housemate poking at the page code still can't touch anyone else's slot.</p>
 
     <div class="row" style="margin-top:18px">
-      <button class="btn ghost tiny" onclick="location.href='link-discord.html'">Link Discord</button>
-      <button class="btn ghost tiny" data-action="signout">Sign out</button>
+      <button class="btn discord" onclick="location.href='link-discord.html'">${ic("chat")}Link Discord</button>
     </div>`;
 }
 
@@ -1915,7 +1917,8 @@ const ICONS = {
   bell:'<path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 21h4"/>',
   trash:'<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/>',
   check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
-  edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>'
+  edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',
+  chat:'<path d="M5 5h14a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 19 17h-8l-4.5 3.5V17H5a1.5 1.5 0 0 1-1.5-1.5v-9A1.5 1.5 0 0 1 5 5z"/><path d="M8.5 11h.01M12 11h.01M15.5 11h.01" stroke-width="2.4"/>'
 };
 const ic = n => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
 const WD = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
