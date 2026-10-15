@@ -5,13 +5,17 @@
 //     House Board code (same lockout as signing in), adds them to the server and
 //     gives them their name role.
 //
-//  2. POST from a Supabase Database Webhook on the `docs` table
-//     Mirrors the noticeboard into #noticeboard: new posts appear, edits/replies/
-//     "sorted" update the same message, deleted posts disappear.
+//  2. POST from the database triggers in discord-meetings.sql
+//     - docs (noticeboard) -> #noticeboard: new posts appear, edits/replies/"sorted"
+//       update the same message, deleted posts disappear.
+//     - meetings / suggestions / votes -> the pinned "Next meeting" card in #meetings,
+//       with every undecided suggestion as "Things to discuss".
+//     - meeting_calls / call_votes -> an early-meeting call in #meetings that pings
+//       everyone with a vote, then updates as they vote.
 //
 // Secrets (Supabase -> Edge Functions -> Secrets), never in the repo:
 //   DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_BOT_TOKEN, DISCORD_GUILD_ID,
-//   DISCORD_NOTICEBOARD_WEBHOOK, WEBHOOK_SECRET, SITE_URL
+//   DISCORD_NOTICEBOARD_WEBHOOK, DISCORD_MEETINGS_WEBHOOK, WEBHOOK_SECRET, SITE_URL
 // Supabase provides SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY itself.
 
 const env = (k: string) => Deno.env.get(k) ?? "";
@@ -38,7 +42,15 @@ Deno.serve(async (req) => {
       return json({ error: "bad secret" }, 401);
     }
     try {
-      await syncNoticeboard(await req.json());
+      const payload = await req.json();
+      const rec = payload.record ?? payload.old_record ?? {};
+      switch (payload.table) {
+        case "docs": await syncNoticeboard(payload); break;
+        case "meetings": case "suggestions": case "suggestion_votes":
+          await refreshMeetingBoard(); break;
+        case "meeting_calls": await syncCall(rec.id); await refreshMeetingBoard(); break;
+        case "call_votes": await syncCall(rec.call_id); await refreshMeetingBoard(); break;
+      }
       return json({ ok: true });
     } catch (e) {
       console.error("noticeboard sync failed", e);
@@ -199,6 +211,148 @@ function noticeMessage(n: Note, names: Map<string, string>) {
 }
 
 // ===========================================================================
+// 3. #meetings: the "Next meeting" card and early-meeting calls
+// ===========================================================================
+const KIND: Record<string, string> = { rule: "📏", issue: "⚠️", idea: "💡", notice: "📌" };
+const ts = (iso: string, style = "F") => `<t:${Math.floor(new Date(iso).getTime() / 1000)}:${style}>`;
+
+async function getState(key: string): Promise<{ message_id: string; ref: string | null } | null> {
+  const rows = await db("GET", `discord_state?select=message_id,ref&key=eq.${encodeURIComponent(key)}`);
+  return rows[0] ?? null;
+}
+
+// Save a new message id for `key`, unless another run got there first (two
+// changes a split second apart). Returns false if we lost, so the caller can
+// delete its duplicate message.
+async function claimState(key: string, messageId: string, ref: string | null, oldMessageId?: string) {
+  const row = { key, message_id: messageId, ref, updated_at: new Date().toISOString() };
+  const rows = oldMessageId
+    ? await db("PATCH", `discord_state?key=eq.${encodeURIComponent(key)}&message_id=eq.${oldMessageId}`, row,
+        { Prefer: "return=representation" })
+    : await db("POST", "discord_state?on_conflict=key", row,
+        { Prefer: "resolution=ignore-duplicates,return=representation" });
+  return Array.isArray(rows) && rows.length > 0;
+}
+
+async function hookSend(method: string, path: string, body?: unknown) {
+  const hook = env("DISCORD_MEETINGS_WEBHOOK");
+  return fetch(`${hook}${path}`, {
+    method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined,
+  });
+}
+
+async function pin(channelId: string, messageId: string) {
+  await bot("PUT", `/channels/${channelId}/pins/${messageId}`).catch(e => console.error("pin", e));
+  // tidy away the "Cindy pinned a message" notice
+  const recent = await bot("GET", `/channels/${channelId}/messages?limit=5`).catch(() => []);
+  for (const m of recent ?? []) if (m.type === 6) await bot("DELETE", `/channels/${channelId}/messages/${m.id}`).catch(() => {});
+}
+
+async function refreshMeetingBoard() {
+  if (!env("DISCORD_MEETINGS_WEBHOOK")) return;
+  const b = await rpc("discord_meeting_board", {});
+  const body = { allowed_mentions: { parse: [] }, embeds: [meetingCard(b)] };
+  const ref = b.next?.id ?? "none";
+  const state = await getState("meeting_board");
+
+  // Same meeting as before: just update the card in place
+  if (state && state.ref === ref) {
+    const r = await hookSend("PATCH", `/messages/${state.message_id}`, body);
+    if (r.ok || r.status !== 404) return;            // 404 = someone deleted it, so post a new one
+  }
+
+  // New meeting (or first time): post a fresh card, pin it, remove the old one
+  const r = await hookSend("POST", "?wait=true", body);
+  if (!r.ok) { console.error("meeting card", r.status, await r.text()); return; }
+  const msg = await r.json();
+  if (!(await claimState("meeting_board", msg.id, ref, state?.message_id))) {
+    await hookSend("DELETE", `/messages/${msg.id}`);  // another run already posted it
+    return;
+  }
+  await pin(msg.channel_id, msg.id);
+  if (state) await hookSend("DELETE", `/messages/${state.message_id}`);
+}
+
+function meetingCard(b: any) {
+  const lines: string[] = [];
+  if (!b.next) {
+    lines.push("No meeting scheduled yet.");
+  } else {
+    const n = b.next;
+    lines.push(`**${ts(n.starts_at)}** · ${ts(n.starts_at, "R")}`);
+    if (n.place) lines.push(`📍 ${n.place}`);
+    if (n.landlord) lines.push("🏠 The landlord is joining this one");
+    if (n.agenda) lines.push("", `📝 ${n.agenda}`);
+  }
+  if (b.call) {
+    lines.push("", `⏩ **${b.call.caller ?? "Someone"} called an early meeting** for ${ts(b.call.starts_at)}. ` +
+      `${b.call.yes} of ${b.call.voters} said yes so far. Vote on [House Board](${SITE}).`);
+  }
+  const items = (b.agenda ?? []).map((s: any) =>
+    `${KIND[s.kind] ?? "•"} **${s.title}**${s.author ? ` · ${s.author}` : ""}` +
+    (s.vote ? ` · 🗳️ ${s.votes}/${b.voters} voted` : ""));
+  lines.push("", `**Things to discuss (${items.length})**`, items.length ? items.join("\n") : "_Nothing yet. Add a suggestion on House Board._");
+
+  let text = lines.join("\n");
+  if (text.length > 4000) text = text.slice(0, 3990) + "\n…";
+  return {
+    color: 0x5865F2,
+    title: "📅 Next group meeting",
+    url: SITE || undefined,
+    description: text,
+    footer: { text: "Updates automatically from House Board" },
+  };
+}
+
+async function syncCall(callId: string) {
+  if (!callId || !env("DISCORD_MEETINGS_WEBHOOK")) return;
+  const c = await rpc("discord_call", { p_id: callId });
+  if (!c) return;
+  const key = `call:${callId}`;
+  const state = await getState(key);
+  const embed = callCard(c);
+
+  if (state) {
+    await hookSend("PATCH", `/messages/${state.message_id}`, { embeds: [embed], allowed_mentions: { parse: [] } });
+    return;
+  }
+  if (c.status !== "open") return;                  // never posted, and it's already over
+
+  // First time: post it with a ping
+  const ids: string[] = c.discord_ids ?? [];
+  const everyone = c.landlord || ids.length === 0;
+  const content = everyone ? "@everyone" : ids.map(id => `<@${id}>`).join(" ");
+  const r = await hookSend("POST", "?wait=true", {
+    content, embeds: [embed],
+    allowed_mentions: everyone ? { parse: ["everyone"] } : { parse: [], users: ids },
+  });
+  if (!r.ok) { console.error("call post", r.status, await r.text()); return; }
+  const msg = await r.json();
+  if (!(await claimState(key, msg.id, null))) await hookSend("DELETE", `/messages/${msg.id}`);
+}
+
+function callCard(c: any) {
+  const when = `${ts(c.starts_at)} · ${ts(c.starts_at, "R")}`;
+  if (c.status === "passed") {
+    return { color: 0x2F7D4F, title: "✅ Everyone's free. The meeting moved", description: `Now **${when}**`, url: SITE || undefined };
+  }
+  if (c.status === "cancelled") {
+    return { color: 0x8E9A93, title: "Early meeting call withdrawn", description: `~~${when}~~`, url: SITE || undefined };
+  }
+  return {
+    color: 0xB0601D,
+    title: `⏩ ${c.caller ?? "Someone"} called an early meeting`,
+    description: [
+      `**${when}**`,
+      c.note ? `\n${c.note}` : "",
+      `\n✅ ${c.yes} of ${c.voters} said yes${c.no ? ` · ❌ ${c.no} can't make it` : ""}`,
+      `It replaces the next meeting once everyone says yes. **[Vote on House Board](${SITE})**`,
+    ].join("\n"),
+    url: SITE || undefined,
+  };
+}
+
+// ===========================================================================
 // Helpers
 // ===========================================================================
 async function bot(method: string, path: string, body?: unknown) {
@@ -231,5 +385,6 @@ async function db(method: string, path: string, body?: unknown, extra: Record<st
     method, headers: dbHeaders(extra), body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) throw new Error(`Database ${method} ${path} -> ${res.status} ${await res.text()}`);
-  return method === "GET" ? res.json() : null;
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
 }
