@@ -75,7 +75,10 @@
 // never to Discord. Discord only tells us your Discord account.
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
 const card = () => document.getElementById("card");
-const REDIRECT = location.origin + location.pathname;
+// Must match the redirect registered in the Discord Developer Portal AND the one the
+// Edge Function uses. Fixed, because Cloudflare serves this page as /link-discord.
+const REDIRECT = location.origin + "/link-discord.html";
+const HERE = location.pathname;
 const header = `<h1 class="address">Link <span>Discord</span></h1>
   <p class="tag">Join the house Discord server with your House Board account.</p>`;
 
@@ -110,7 +113,7 @@ function showStart(msg) {
 }
 
 async function finish(code, state) {
-  history.replaceState(null, "", REDIRECT);                       // drop ?code=... from the address bar
+  history.replaceState(null, "", HERE);                       // drop ?code=... from the address bar
   if (!state || state !== sessionStorage.getItem("hb:dstate"))
     return showStart(`<p class="msg bad">That link didn't come from this page. Try again.</p>`);
   sessionStorage.removeItem("hb:dstate");
@@ -137,6 +140,6 @@ async function finish(code, state) {
 
 const q = new URLSearchParams(location.search);
 if (q.get("code")) finish(q.get("code"), q.get("state"));
-else if (q.get("error")) { history.replaceState(null, "", REDIRECT); showStart(`<p class="msg wait">No problem, nothing was linked.</p>`); }
+else if (q.get("error")) { history.replaceState(null, "", HERE); showStart(`<p class="msg wait">No problem, nothing was linked.</p>`); }
 else showStart();
 </script>
