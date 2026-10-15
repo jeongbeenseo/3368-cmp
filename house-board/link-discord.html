@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Link Discord — House Board</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="House Board">
+<meta name="theme-color" content="#1b3529">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,500;1,6..96,500&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --ink:#16241e; --slate:#5b6a62; --faint:#8e9a93; --line:#dde3dd; --bg:#1b3529; --card:#f5f6f2; --on-ink:#f5f6f2;
+    --c0:#94702f; --c3:#a8443a; --c4:#2e7650; --soft-bad:#f7e5e2; --soft-good:#e3f0e8; --soft-wait:#f3ead8;
+    --display:"Bodoni Moda","Didot",Georgia,serif;
+    --body:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --ink:#e5eae5; --slate:#9daaa3; --faint:#6e7c75; --line:#26322c; --bg:#0b1611; --card:#16201b; --on-ink:#0f1613;
+    --c0:#d3ae6b; --c3:#e08a7f; --c4:#6cc093; --soft-bad:#2e1a17; --soft-good:#16291f; --soft-wait:#2b2518; color-scheme:dark }}
+  *{box-sizing:border-box}
+  body{margin:0;padding:34px 20px 60px;background:var(--bg);color:var(--ink);
+       font-family:var(--body);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;
+       display:flex;align-items:flex-start;justify-content:center;min-height:100vh}
+  .card{width:100%;max-width:400px;background:var(--card);border:1px solid var(--line);
+        border-radius:18px;padding:30px 26px 26px;margin-top:6vh}
+
+  .address{font-family:var(--display);font-weight:500;font-size:30px;letter-spacing:-.025em;
+           line-height:1.12;margin:0}
+  .address span{display:block;color:var(--c0);font-style:italic}
+  .tag{color:var(--slate);font-size:14px;margin:8px 0 26px}
+
+  h2{font-family:var(--display);font-weight:500;font-size:22px;margin:0 0 4px}
+  .hint{color:var(--slate);font-size:13.5px;margin:0 0 18px}
+
+  button.big{width:100%;font:inherit;font-family:var(--display);font-weight:700;font-size:16px;
+    padding:14px;border-radius:12px;border:1px solid var(--ink);background:var(--ink);color:var(--on-ink);
+    cursor:pointer;margin-bottom:10px}
+  button.big.alt{background:transparent;color:var(--ink)}
+  button.big:hover{opacity:.9}
+
+  label{display:block;font-size:12.5px;color:var(--slate);margin:0 0 5px}
+  .field{margin-bottom:15px}
+  input,select{width:100%;font:inherit;font-size:16px;padding:11px 12px;border:1px solid var(--line);
+    border-radius:10px;background:var(--card);color:var(--ink)}
+  input.pin{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:30px;letter-spacing:.55em;
+    text-align:center;padding:14px 12px 14px 24px}
+  :focus-visible{outline:2.5px solid var(--ink);outline-offset:2px}
+
+  .msg{font-size:14px;border-radius:10px;padding:11px 13px;margin:0 0 16px}
+  .msg.bad{background:var(--soft-bad);color:var(--c3)}
+  .msg.good{background:var(--soft-good);color:var(--c4)}
+  .msg.wait{background:var(--soft-wait);color:var(--c0)}
+
+  .back{background:none;border:0;font:inherit;font-size:13.5px;color:var(--slate);
+        cursor:pointer;padding:8px 0;text-decoration:underline}
+  .foot{color:var(--faint);font-size:12.5px;margin:20px 0 0;text-align:center}
+  .discord{background:#5865F2;border-color:#5865F2;color:#fff}
+  .steps{color:var(--slate);font-size:14px;margin:0 0 20px;padding-left:20px}
+  .steps li{margin-bottom:4px}
+  a.big{display:block;text-align:center;text-decoration:none;width:100%;font-family:var(--display);font-weight:700;
+    font-size:16px;padding:14px;border-radius:12px;border:1px solid #5865F2;background:#5865F2;color:#fff;margin-bottom:10px}
+</style>
+
+<div class="card" id="card"></div>
+
+<script src="config.js"></script>
+<script>
+// Links your House Board account to the house Discord server.
+// Your House Board code only ever goes to House Board's own database function,
+// never to Discord. Discord only tells us your Discord account.
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+const card = () => document.getElementById("card");
+const REDIRECT = location.origin + location.pathname;
+const header = `<h1 class="address">Link <span>Discord</span></h1>
+  <p class="tag">Join the house Discord server with your House Board account.</p>`;
+
+let saved = null;
+try { saved = JSON.parse(localStorage.getItem("hb:code") || "null"); } catch (e) {}
+
+function show(html) { card().innerHTML = header + html; }
+
+function showStart(msg) {
+  if (typeof DISCORD_CLIENT_ID === "undefined" || !DISCORD_CLIENT_ID)
+    return show(`<p class="msg wait">Discord isn't set up yet. Add DISCORD_CLIENT_ID to config.js.</p>`);
+  if (!saved) return show(`${msg || ""}
+    <p class="msg wait">Sign in to House Board first, then come back here.</p>
+    <button class="big" onclick="location.href='login.html'">Sign in to House Board</button>`);
+  show(`${msg || ""}
+    <ol class="steps">
+      <li>Discord asks if House Board can see your username and add you to the server.</li>
+      <li>Click <b>Authorize</b>.</li>
+      <li>You're in, with your name role.</li>
+    </ol>
+    <button class="big discord" id="go">Continue with Discord</button>
+    <button class="back" onclick="location.href='index.html'">Back to the board</button>
+    <p class="foot">Your House Board code is never sent to Discord.</p>`);
+  document.getElementById("go").onclick = () => {
+    const state = crypto.getRandomValues(new Uint32Array(4)).join("-");
+    sessionStorage.setItem("hb:dstate", state);
+    location.href = "https://discord.com/oauth2/authorize?" + new URLSearchParams({
+      response_type: "code", client_id: DISCORD_CLIENT_ID, scope: "identify guilds.join",
+      redirect_uri: REDIRECT, state, prompt: "consent",
+    });
+  };
+}
+
+async function finish(code, state) {
+  history.replaceState(null, "", REDIRECT);                       // drop ?code=... from the address bar
+  if (!state || state !== sessionStorage.getItem("hb:dstate"))
+    return showStart(`<p class="msg bad">That link didn't come from this page. Try again.</p>`);
+  sessionStorage.removeItem("hb:dstate");
+  if (!saved) return showStart();
+
+  show(`<p class="msg wait">Linking your account…</p>`);
+  try {
+    const res = await fetch(SUPABASE_URL + "/functions/v1/discord", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY },
+      body: JSON.stringify({ action: "link", code, member_code: saved }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok || !out.ok) throw new Error(out.error || "Something went wrong. Try again.");
+    show(`<p class="msg good">You're in, ${esc(out.name)}! Linked to <b>${esc(out.discord_name)}</b>${
+          out.role ? ` with the <b>${esc(out.role)}</b> role` : ""}.</p>
+      ${out.warning ? `<p class="msg wait">${esc(out.warning)}</p>` : ""}
+      <a class="big" href="https://discord.com/channels/${encodeURIComponent(out.guild_id)}">Open the server</a>
+      <button class="back" onclick="location.href='index.html'">Back to the board</button>`);
+  } catch (e) {
+    showStart(`<p class="msg bad">${esc(e.message)}</p>`);
+  }
+}
+
+const q = new URLSearchParams(location.search);
+if (q.get("code")) finish(q.get("code"), q.get("state"));
+else if (q.get("error")) { history.replaceState(null, "", REDIRECT); showStart(`<p class="msg wait">No problem, nothing was linked.</p>`); }
+else showStart();
+</script>
