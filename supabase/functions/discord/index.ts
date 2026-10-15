@@ -12,10 +12,12 @@
 //       with every undecided suggestion as "Things to discuss".
 //     - meeting_calls / call_votes -> an early-meeting call in #meetings that pings
 //       everyone with a vote, then updates as they vote.
+//     - tick (every minute, from discord-laundry.sql) -> "3 minutes left" pings in
+//       #laundry-kitchen, to the person who booked only.
 //
 // Secrets (Supabase -> Edge Functions -> Secrets), never in the repo:
 //   DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_BOT_TOKEN, DISCORD_GUILD_ID,
-//   DISCORD_NOTICEBOARD_WEBHOOK, DISCORD_MEETINGS_WEBHOOK, WEBHOOK_SECRET, SITE_URL
+//   DISCORD_NOTICEBOARD_WEBHOOK, DISCORD_MEETINGS_WEBHOOK, DISCORD_LAUNDRY_WEBHOOK, WEBHOOK_SECRET, SITE_URL
 // Supabase provides SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY itself.
 
 const env = (k: string) => Deno.env.get(k) ?? "";
@@ -50,10 +52,11 @@ Deno.serve(async (req) => {
           await refreshMeetingBoard(); break;
         case "meeting_calls": await syncCall(rec.id); await refreshMeetingBoard(); break;
         case "call_votes": await syncCall(rec.call_id); await refreshMeetingBoard(); break;
+        case "tick": await bookingReminders(); break;
       }
       return json({ ok: true });
     } catch (e) {
-      console.error("noticeboard sync failed", e);
+      console.error("sync failed", e);
       return json({ error: String(e) }, 500);
     }
   }
@@ -350,6 +353,39 @@ function callCard(c: any) {
     ].join("\n"),
     url: SITE || undefined,
   };
+}
+
+// ===========================================================================
+// 4. "3 minutes left" in #laundry-kitchen
+// ===========================================================================
+async function bookingReminders() {
+  const hook = env("DISCORD_LAUNDRY_WEBHOOK");
+  if (!hook) return;
+  const ending: any[] = await rpc("discord_bookings_ending", {});
+  for (const b of ending) {
+    // claim it first, so the next minute's check doesn't ping twice
+    if (!(await claimState(`booking:${b.id}`, "sending", null))) continue;
+    const left = Math.max(1, Math.round((new Date(b.ends_at).getTime() - Date.now()) / 60000));
+    const r = await fetch(`${hook}?wait=true`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        content: `<@${b.discord_id}>`,
+        allowed_mentions: { parse: [], users: [b.discord_id] },   // only the person who booked
+        embeds: [{
+          color: 0x2A5FA8,
+          title: `🧺 ${b.resource}: ${left} min left`,
+          description: `Your time ends at ${ts(b.ends_at, "t")}. Please take your things out for the next person.`,
+        }],
+      }),
+    });
+    if (!r.ok) { console.error("booking ping", r.status, await r.text()); continue; }
+    const { id } = await r.json();
+    await db("PATCH", `discord_state?key=eq.${encodeURIComponent(`booking:${b.id}`)}`, { message_id: id });
+  }
+  // forget reminders older than two days
+  const cutoff = new Date(Date.now() - 2 * 86400000).toISOString();
+  await db("DELETE", `discord_state?key=like.booking:*&updated_at=lt.${cutoff}`).catch(() => {});
 }
 
 // ===========================================================================

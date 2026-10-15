@@ -1,6 +1,6 @@
 # House Board ↔ Discord
 
-Three things, all handled by one Supabase Edge Function (`supabase/functions/discord`):
+Four things, all handled by one Supabase Edge Function (`supabase/functions/discord`):
 
 1. **Link Discord**: on House Board, *Housemates → Link Discord*. You sign in with your
    House Board code, Discord asks you to authorize, and you're added to the house server
@@ -12,6 +12,8 @@ Three things, all handled by one Supabase Edge Function (`supabase/functions/dis
    "Things to discuss", kept up to date. When someone calls an early meeting, Cindy posts
    it and pings everyone with a vote (their linked Discord accounts, or @everyone if the
    landlord is included), then updates it as people vote.
+4. **#🧺・laundry-kitchen**: 3 minutes before your booking ends (the same reminder the
+   board gives), Cindy pings you, and only you. Back-to-back hours count as one booking.
 
 Nothing secret is in this repo. Secrets live in Supabase → Edge Functions → Secrets.
 
@@ -40,6 +42,7 @@ Nothing secret is in this repo. Secrets live in Supabase → Edge Functions → 
    | `DISCORD_GUILD_ID` | the server ID (same as `.env`) |
    | `DISCORD_NOTICEBOARD_WEBHOOK` | the `noticeboard=` URL from `webhook-urls.txt` |
    | `DISCORD_MEETINGS_WEBHOOK` | the `meetings=` URL from `webhook-urls.txt` |
+   | `DISCORD_LAUNDRY_WEBHOOK` | the `laundry-kitchen=` URL from `webhook-urls.txt` |
    | `WEBHOOK_SECRET` | a long random string you make up |
    | `SITE_URL` | `https://3368-cmp.pages.dev` |
 
@@ -48,6 +51,8 @@ Nothing secret is in this repo. Secrets live in Supabase → Edge Functions → 
    This sets up the database triggers that tell the function when the noticeboard,
    meetings, suggestions or calls change. (Don't also create a Database Webhook in the
    dashboard, or posts would arrive twice.)
+6. **SQL Editor:** paste `house-board/discord-laundry.sql` → Run. This adds a once-a-minute
+   check (pg_cron) that only calls the function when a booking is about to end.
 
 ### 3. Discord server
 
