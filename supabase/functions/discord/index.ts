@@ -15,10 +15,15 @@
 //     - tick (every minute, from discord-laundry.sql) -> "3 minutes left" pings in
 //       #laundry-kitchen, to the person who booked only.
 //
+//  3. POST from Discord itself (the app's Interactions Endpoint URL): the
+//     /laundryalert and /dryeralert slash commands, which ping whoever was booked last.
+//
 // Secrets (Supabase -> Edge Functions -> Secrets), never in the repo:
-//   DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_BOT_TOKEN, DISCORD_GUILD_ID,
+//   DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_BOT_TOKEN, DISCORD_GUILD_ID, DISCORD_PUBLIC_KEY,
 //   DISCORD_NOTICEBOARD_WEBHOOK, DISCORD_MEETINGS_WEBHOOK, DISCORD_LAUNDRY_WEBHOOK, WEBHOOK_SECRET, SITE_URL
 // Supabase provides SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY itself.
+
+import nacl from "npm:tweetnacl@1.0.3";
 
 const env = (k: string) => Deno.env.get(k) ?? "";
 const SITE = env("SITE_URL").replace(/\/$/, "");            // https://3368-cmp.pages.dev
@@ -37,6 +42,9 @@ const json = (body: unknown, status = 200) =>
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
+
+  // Slash commands, sent by Discord
+  if (req.headers.get("x-signature-ed25519")) return interaction(req);
 
   // Database Webhook (noticeboard)
   if (req.headers.get("x-webhook-secret")) {
@@ -169,10 +177,12 @@ async function syncNoticeboard(payload: any) {
   );
   const names = new Map<string, string>((await rpc("discord_names", {})).map((r: any) => [r.id, r.name]));
   const hook = env("DISCORD_NOTICEBOARD_WEBHOOK");
+  const isNew = new Set(added.map(n => n.id));
 
   for (const n of [...added, ...changed]) {
     const msg = posted.get(n.id);
-    const body = JSON.stringify(noticeMessage(n, names));
+    // brand-new posts ping every housemate except whoever wrote it; edits and replies stay quiet
+    const body = JSON.stringify({ ...noticeMessage(n, names), ...(isNew.has(n.id) && !msg ? ping(await pingIds({ except: n.by })) : {}) });
     if (msg) {
       const r = await fetch(`${hook}/messages/${msg}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body });
       if (r.ok || r.status !== 404) continue;          // 404 = someone deleted it in Discord, so post again
@@ -264,8 +274,11 @@ async function refreshMeetingBoard() {
     if (r.ok || r.status !== 404) return;            // 404 = someone deleted it, so post a new one
   }
 
-  // New meeting (or first time): post a fresh card, pin it, remove the old one
-  const r = await hookSend("POST", "?wait=true", body);
+  // New meeting (or first time): post a fresh card, pin it, remove the old one.
+  // A newly scheduled meeting pings everyone (the landlord too if they're joining);
+  // reposting a card someone deleted doesn't.
+  const fresh = b.next && state?.ref !== ref;
+  const r = await hookSend("POST", "?wait=true", fresh ? { ...body, ...ping(await pingIds({ landlord: !!b.next.landlord })) } : body);
   if (!r.ok) { console.error("meeting card", r.status, await r.text()); return; }
   const msg = await r.json();
   if (!(await claimState("meeting_board", msg.id, ref, state?.message_id))) {
@@ -389,8 +402,64 @@ async function bookingReminders() {
 }
 
 // ===========================================================================
+// 5. /laundryalert and /dryeralert
+// ===========================================================================
+const ALERTS: Record<string, string> = {
+  laundryalert: "I am going to piss in your load if you don't take your laundry out of the laundry machine. :D",
+  dryeralert: "Your filthy clothes are still in the dryer. Please take them out as soon as possible. :))))",
+};
+
+const hexBytes = (hex: string) => new Uint8Array((hex.match(/../g) ?? []).map(b => parseInt(b, 16)));
+
+async function interaction(req: Request) {
+  // Discord signs every request; anything else is someone pretending to be Discord
+  const raw = await req.text();
+  let ok = false;
+  try {
+    ok = nacl.sign.detached.verify(
+      new TextEncoder().encode((req.headers.get("x-signature-timestamp") ?? "") + raw),
+      hexBytes(req.headers.get("x-signature-ed25519") ?? ""),
+      hexBytes(env("DISCORD_PUBLIC_KEY")),
+    );
+  } catch { /* wrong-length key or signature */ }
+  if (!ok) return new Response("bad signature", { status: 401 });
+
+  const i = JSON.parse(raw);
+  if (i.type === 1) return Response.json({ type: 1 });             // Discord checking the URL works
+  // flags 64 = only the person who ran the command sees the reply
+  const reply = (content: string, extra: Record<string, unknown> = {}) =>
+    Response.json({ type: 4, data: { content, allowed_mentions: { parse: [] }, ...extra } });
+
+  const alert = ALERTS[i.data?.name];
+  if (i.type !== 2 || !alert) return reply("I don't know that command.", { flags: 64 });
+
+  try {
+    const last = await rpc("discord_last_laundry", { p_except: i.member?.user?.id ?? null });
+    if (!last) return reply("Nobody else has booked the laundry yet.", { flags: 64 });
+    if (!last.discord_id) return reply(`${last.name} was booked last but hasn't linked Discord, so I can't ping them.`, { flags: 64 });
+    return reply(`<@${last.discord_id}> sama. ${alert}`, { allowed_mentions: { parse: [], users: [last.discord_id] } });
+  } catch (e) {
+    console.error("laundry alert", e);
+    return reply("Couldn't check the bookings just now. Try again in a minute.", { flags: 64 });
+  }
+}
+
+// ===========================================================================
 // Helpers
 // ===========================================================================
+// Linked members to ping: housemates and the manager, never guests, the landlord only if asked.
+async function pingIds({ except, landlord = false }: { except?: string; landlord?: boolean } = {}) {
+  const rows: { id: string; discord_id: string; role: string }[] = await rpc("discord_pings", {});
+  return rows
+    .filter(r => r.id !== except && r.role !== "guest" && (landlord || r.role !== "landlord"))
+    .map(r => r.discord_id);
+}
+
+// Message fields that ping exactly these Discord users and nobody else
+const ping = (ids: string[]) => ids.length
+  ? { content: ids.map(id => `<@${id}>`).join(" "), allowed_mentions: { parse: [], users: ids.slice(0, 100) } }
+  : {};
+
 async function bot(method: string, path: string, body?: unknown) {
   const res = await fetch(DISCORD + path, {
     method,

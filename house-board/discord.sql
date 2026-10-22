@@ -69,8 +69,20 @@ begin
   return query select m.id, m.name from members m;
 end; $$;
 
+-- Active members who've linked Discord, for pinging new noticeboard posts and meetings.
+create or replace function discord_pings()
+returns table (id uuid, discord_id text, role text)
+language plpgsql security definer set search_path = public as $$
+begin
+  if not is_server() then raise exception 'Not allowed'; end if;
+  return query select m.id, m.discord_id, m.role from members m
+   where m.discord_id is not null and m.status = 'active';
+end; $$;
+
 revoke execute on function discord_link(text, text, text) from public, anon, authenticated;
 revoke execute on function discord_names()                from public, anon, authenticated;
+revoke execute on function discord_pings()                from public, anon, authenticated;
 grant  execute on function discord_link(text, text, text) to service_role;
 grant  execute on function discord_names()                to service_role;
+grant  execute on function discord_pings()                to service_role;
 grant  select, insert, update, delete on discord_posts    to service_role;

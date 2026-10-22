@@ -6,14 +6,19 @@ Four things, all handled by one Supabase Edge Function (`supabase/functions/disc
    House Board code, Discord asks you to authorize, and you're added to the house server
    with your name role. Your House Board code never goes to Discord.
 2. **Noticeboard mirror**: posts on the House Board noticeboard appear in
-   #📋・noticeboard as Cindy. Replies, edits and "Mark sorted" update the same message;
-   deleting a post removes it.
+   #📋・noticeboard as Cindy. A new post pings every linked housemate except whoever wrote
+   it. Replies, edits and "Mark sorted" update the same message quietly; deleting a post
+   removes it.
 3. **#📅・meetings**: a pinned *Next meeting* card with every undecided suggestion as
-   "Things to discuss", kept up to date. When someone calls an early meeting, Cindy posts
+   "Things to discuss", kept up to date. A newly scheduled meeting pings every linked
+   housemate (and the landlord if they're joining). When someone calls an early meeting, Cindy posts
    it and pings everyone with a vote (their linked Discord accounts, or @everyone if the
    landlord is included), then updates it as people vote.
 4. **#🧺・laundry-kitchen**: 3 minutes before your booking ends (the same reminder the
    board gives), Cindy pings you, and only you. Back-to-back hours count as one booking.
+5. **`/laundryalert` and `/dryeralert`**: anyone can type these in Discord to have Cindy
+   ping whoever was booked on the laundry last (the latest booking that has started,
+   never the person who typed it) to come get their washer or dryer load.
 
 Nothing secret is in this repo. Secrets live in Supabase → Edge Functions → Secrets.
 
@@ -40,6 +45,7 @@ Nothing secret is in this repo. Secrets live in Supabase → Edge Functions → 
    | `DISCORD_CLIENT_SECRET` | from step 1 |
    | `DISCORD_BOT_TOKEN` | Cindy's token (same as `.env` in discord-setup) |
    | `DISCORD_GUILD_ID` | the server ID (same as `.env`) |
+   | `DISCORD_PUBLIC_KEY` | Developer Portal → General Information → Public Key |
    | `DISCORD_NOTICEBOARD_WEBHOOK` | the `noticeboard=` URL from `webhook-urls.txt` |
    | `DISCORD_MEETINGS_WEBHOOK` | the `meetings=` URL from `webhook-urls.txt` |
    | `DISCORD_LAUNDRY_WEBHOOK` | the `laundry-kitchen=` URL from `webhook-urls.txt` |
@@ -52,7 +58,16 @@ Nothing secret is in this repo. Secrets live in Supabase → Edge Functions → 
    meetings, suggestions or calls change. (Don't also create a Database Webhook in the
    dashboard, or posts would arrive twice.)
 6. **SQL Editor:** paste `house-board/discord-laundry.sql` → Run. This adds a once-a-minute
-   check (pg_cron) that only calls the function when a booking is about to end.
+   check (pg_cron) that only calls the function when a booking is about to end, and the
+   lookup behind `/laundryalert` and `/dryeralert`.
+7. **Developer Portal → General Information → Interactions Endpoint URL:**
+   `https://gzlvqdcrewfcaegoxcno.supabase.co/functions/v1/discord` → Save. Discord checks
+   it right away, so deploy the function with `DISCORD_PUBLIC_KEY` set first.
+
+The two slash commands are registered on the server once, with Cindy's token:
+`POST /applications/1560068767289974934/guilds/<server ID>/commands` with
+`{"name":"laundryalert","description":"…","type":1}` (and the same for `dryeralert`).
+Posting one again with the same name just updates it.
 
 ### 3. Discord server
 
