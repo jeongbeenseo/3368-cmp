@@ -169,10 +169,12 @@ async function syncNoticeboard(payload: any) {
   );
   const names = new Map<string, string>((await rpc("discord_names", {})).map((r: any) => [r.id, r.name]));
   const hook = env("DISCORD_NOTICEBOARD_WEBHOOK");
+  const isNew = new Set(added.map(n => n.id));
 
   for (const n of [...added, ...changed]) {
     const msg = posted.get(n.id);
-    const body = JSON.stringify(noticeMessage(n, names));
+    // brand-new posts ping every housemate except whoever wrote it; edits and replies stay quiet
+    const body = JSON.stringify({ ...noticeMessage(n, names), ...(isNew.has(n.id) && !msg ? ping(await pingIds({ except: n.by })) : {}) });
     if (msg) {
       const r = await fetch(`${hook}/messages/${msg}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body });
       if (r.ok || r.status !== 404) continue;          // 404 = someone deleted it in Discord, so post again
@@ -264,8 +266,11 @@ async function refreshMeetingBoard() {
     if (r.ok || r.status !== 404) return;            // 404 = someone deleted it, so post a new one
   }
 
-  // New meeting (or first time): post a fresh card, pin it, remove the old one
-  const r = await hookSend("POST", "?wait=true", body);
+  // New meeting (or first time): post a fresh card, pin it, remove the old one.
+  // A newly scheduled meeting pings everyone (the landlord too if they're joining);
+  // reposting a card someone deleted doesn't.
+  const fresh = b.next && state?.ref !== ref;
+  const r = await hookSend("POST", "?wait=true", fresh ? { ...body, ...ping(await pingIds({ landlord: !!b.next.landlord })) } : body);
   if (!r.ok) { console.error("meeting card", r.status, await r.text()); return; }
   const msg = await r.json();
   if (!(await claimState("meeting_board", msg.id, ref, state?.message_id))) {
@@ -391,6 +396,19 @@ async function bookingReminders() {
 // ===========================================================================
 // Helpers
 // ===========================================================================
+// Linked members to ping: housemates and the manager, never guests, the landlord only if asked.
+async function pingIds({ except, landlord = false }: { except?: string; landlord?: boolean } = {}) {
+  const rows: { id: string; discord_id: string; role: string }[] = await rpc("discord_pings", {});
+  return rows
+    .filter(r => r.id !== except && r.role !== "guest" && (landlord || r.role !== "landlord"))
+    .map(r => r.discord_id);
+}
+
+// Message fields that ping exactly these Discord users and nobody else
+const ping = (ids: string[]) => ids.length
+  ? { content: ids.map(id => `<@${id}>`).join(" "), allowed_mentions: { parse: [], users: ids.slice(0, 100) } }
+  : {};
+
 async function bot(method: string, path: string, body?: unknown) {
   const res = await fetch(DISCORD + path, {
     method,

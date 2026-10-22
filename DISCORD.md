@@ -6,10 +6,12 @@ Four things, all handled by one Supabase Edge Function (`supabase/functions/disc
    House Board code, Discord asks you to authorize, and you're added to the house server
    with your name role. Your House Board code never goes to Discord.
 2. **Noticeboard mirror**: posts on the House Board noticeboard appear in
-   #📋・noticeboard as Cindy. Replies, edits and "Mark sorted" update the same message;
-   deleting a post removes it.
+   #📋・noticeboard as Cindy. A new post pings every linked housemate except whoever wrote
+   it. Replies, edits and "Mark sorted" update the same message quietly; deleting a post
+   removes it.
 3. **#📅・meetings**: a pinned *Next meeting* card with every undecided suggestion as
-   "Things to discuss", kept up to date. When someone calls an early meeting, Cindy posts
+   "Things to discuss", kept up to date. A newly scheduled meeting pings every linked
+   housemate (and the landlord if they're joining). When someone calls an early meeting, Cindy posts
    it and pings everyone with a vote (their linked Discord accounts, or @everyone if the
    landlord is included), then updates it as people vote.
 4. **#🧺・laundry-kitchen**: 3 minutes before your booking ends (the same reminder the
