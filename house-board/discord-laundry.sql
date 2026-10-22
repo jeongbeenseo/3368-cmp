@@ -35,6 +35,28 @@ end; $$;
 revoke execute on function discord_bookings_ending() from public, anon, authenticated;
 grant  execute on function discord_bookings_ending() to service_role;
 
+-- Who was booked on the laundry last, for /laundryalert and /dryeralert. Server only.
+-- The latest booking that has already started, skipping whoever ran the command, so
+-- someone whose own slot just began pings the person before them.
+create or replace function discord_last_laundry(p_except text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+begin
+  if not is_server() then raise exception 'Not allowed'; end if;
+  return (
+    select jsonb_build_object('name', m.name, 'discord_id', m.discord_id)
+    from bookings b
+    join members m on m.id = b.person_id
+    where b.resource_id in (select r ->> 'id' from config c, jsonb_array_elements(c.data -> 'resources') r
+                            where c.id = 1 and r ->> 'name' ~* '(wash|laundry|dryer)')
+      and ((b.day + make_interval(hours => b.hour))::timestamp at time zone 'America/Toronto') <= now()
+      and m.discord_id is distinct from p_except
+    order by b.day desc, b.hour desc
+    limit 1);
+end; $$;
+
+revoke execute on function discord_last_laundry(text) from public, anon, authenticated;
+grant  execute on function discord_last_laundry(text) to service_role;
+
 -- Every minute, nudge the Edge Function to check.
 create or replace function discord_tick() returns void
 language plpgsql security definer set search_path = public, extensions as $$
