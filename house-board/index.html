@@ -1000,7 +1000,7 @@ function renderHouse() {
         <div class="prow">
           <span class="badge" style="background:${col(i)}">${esc(initials(p.name))}</span>
           <span style="flex:1">${esc(p.name)}<span class="unitname">${esc(p.unit)}</span>${
-            p.role && p.role !== "member" && p.role !== "manager" ? ` <span class="role member">${esc(p.role)}</span>` : ""}${
+            p.role && p.role !== "member" && p.role !== "manager" && p.role !== "basement" ? ` <span class="role member">${esc(p.role)}</span>` : ""}${
             p.id === ME ? " · you" : ""}</span>
         </div>`).join("")}</div>
       <p class="locked">Only ${esc(managerName())} can add or remove people. If your name or unit is wrong, ask them.</p>
