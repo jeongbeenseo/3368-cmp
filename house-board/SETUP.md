@@ -13,6 +13,7 @@ structural.
 | `index.html` | The board itself. Redirects here to log in if you're not signed in. |
 | `config.js` | **The only file you edit.** Your two Supabase values. |
 | `schema.sql` | Run once in Supabase. Contains no codes, safe to commit. |
+| `basement.sql` | Adds basement accounts and Joint suggestions. Run after `meetings.sql`, `polls.sql` and `keep-records.sql`. |
 | `sw.js`, `manifest.json`, `icon*.png` | Make it installable as an app. |
 
 ---
