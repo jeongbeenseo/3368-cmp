@@ -414,6 +414,7 @@
   .kind{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:5px;flex:none;width:72px;text-align:center}
   .k-rule{background:var(--brass-soft);color:var(--brass)} .k-issue{background:var(--bad-soft);color:var(--bad)}
   .k-idea{background:var(--good-soft);color:var(--good)} .k-notice{background:var(--hover);color:var(--slate)}
+  .k-joint{background:var(--ink);color:var(--on-ink)}
   .gline{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:6px 0 8px}
   .gline h3{margin:0}
   .fabs{position:fixed;right:26px;bottom:calc(26px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px;
@@ -589,7 +590,7 @@ const S = {
 };
 let MEET_READY = false, POLLS_READY = false;
 
-let CODE = null, ME = null, ROLE = "member", IS_MANAGER = false, IS_GUEST = false,
+let CODE = null, ME = null, ROLE = "member", IS_MANAGER = false, IS_GUEST = false, IS_BASEMENT = false,
     MEMBERS = null, UNITS = [];
 const ui = { tab:"cal", res:null, day:isoOf(todayUTC()), offset:0, filter:"open",
              replyTo:null, editZone:null, cal:null, selDay:null, q:"", caret:null, clearDates:false, editCode:null, pendingCode:null, focus:null,
@@ -719,6 +720,7 @@ function subscribe() {
     .on("postgres_changes", { event:"INSERT", schema:"public", table:"notices" }, p => {
       const n = p.new || {};
       if (ROLE === "landlord" && !n.landlord) return;
+      if (IS_BASEMENT && n.kind === "call") return bump();
       if (Date.now() - lastWrite > 1500) alertUser(n.title, n.body);
       bump();
     })
@@ -1002,7 +1004,7 @@ function renderHouse() {
             p.id === ME ? " · you" : ""}</span>
         </div>`).join("")}</div>
       <p class="locked">Only ${esc(managerName())} can add or remove people. If your name or unit is wrong, ask them.</p>
-      <div class="row" style="margin-top:22px"><button class="btn discord" onclick="location.href='link-discord.html'">${ic("chat")}Link Discord</button></div>`;
+      ${IS_BASEMENT ? "" : `<div class="row" style="margin-top:22px"><button class="btn discord" onclick="location.href='link-discord.html'">${ic("chat")}Link Discord</button></div>`}`;
   }
 
   if (!MEMBERS) return `<h2 class="sec">Housemates</h2><p class="sub">Loading…</p>`;
@@ -1049,7 +1051,7 @@ function renderHouse() {
       <td>${m.id === ME
         ? `<span class="role">manager</span>`
         : `<select data-change="m-role" data-id="${m.id}" aria-label="Role">
-             ${["member","landlord","guest","manager"].map(r =>
+             ${["member","basement","landlord","guest","manager"].map(r =>
                `<option value="${r}" ${(m.role || (m.is_manager ? "manager" : "member")) === r ? "selected" : ""}>${r}</option>`).join("")}
            </select>`}</td>
       <td style="white-space:nowrap">
@@ -1094,6 +1096,10 @@ function renderHouse() {
       bookable things and units, and set who's on which cleaning area. Everyone else can tick areas off, book
       and cancel their own hours, plan grocery runs and post to the board. The database enforces this — a
       housemate poking at the page code still can't touch anyone else's slot.</p>
+    <p class="sub" style="max-width:60ch"><b>Basement</b> accounts see Calendar, Group Meeting, Groceries,
+      Noticeboard and Housemates. They aren't in the cleaning rotation and can't book. In Group Meeting they post
+      Joint suggestions and vote only on Joint ones. Anyone who registers under a unit starting with "Basement"
+      gets this role automatically.</p>
 
     <div class="row" style="margin-top:18px">
       <button class="btn discord" onclick="location.href='link-discord.html'">${ic("chat")}Link Discord</button>
@@ -1569,10 +1575,13 @@ function renderCal() {
 // ===========================================================================
 // Render
 // ===========================================================================
-const TABS = [
+const ALL_TABS = [
   ["cal","Calendar"], ["meet","Group Meeting"], ["clean","Cleaning"], ["book","Bookings"], ["shop","Groceries"],
   ["board","Noticeboard"], ["house","Housemates"]
 ];
+// Basement accounts don't share the cleaning rotation or the bookable appliances.
+const BASEMENT_TABS = new Set(["cal","meet","shop","board","house"]);
+let TABS = ALL_TABS;
 const RENDER = { cal: () => renderCal(), meet: () => renderMeet(), clean: () => renderClean(), book: () => renderBook(),
                  shop: () => renderShop(), board: () => renderBoard(), house: () => renderHouse() };
 
@@ -1939,7 +1948,7 @@ const toInputs = d => [localIso(d), `${String(d.getHours()).padStart(2,"0")}:${S
 // ===========================================================================
 // Group meetings: data
 // ===========================================================================
-const KIND_LABEL = { rule:"Rule", issue:"Issue", idea:"Idea", notice:"Notice" };
+const KIND_LABEL = { rule:"Rule", issue:"Issue", idea:"Idea", notice:"Notice", joint:"Joint" };
 const mStart = m => new Date(m.starts_at);
 const mEnd = m => m.ends_at ? new Date(m.ends_at) : new Date(mStart(m).getTime() + 2*3600000);
 const meetingsAhead = () => S.meetings.filter(m => mEnd(m) > new Date()).sort((a, b) => mStart(a) - mStart(b));
@@ -1948,24 +1957,25 @@ const openCall = () => S.calls.find(c => c.status === "open" && new Date(c.start
 const voters = c => S.roster.filter(p => p.role === "member" || p.role === "manager" || !p.role || (p.role === "landlord" && c.landlord));
 const voteOf = (c, id) => (S.votes.find(v => v.call_id === c.id && v.member_id === id) || {}).vote || null;
 const fileUrl = f => SB ? SB.storage.from("meeting-files").getPublicUrl(f.path).data.publicUrl : "";
-const pollVoters = () => S.roster.filter(p => !p.role || p.role === "member" || p.role === "manager");
+// Housemates and the manager vote on everything; the basement joins in on Joint ones.
+const pollVoters = s => S.roster.filter(p => !p.role || p.role === "member" || p.role === "manager" || (p.role === "basement" && s && s.kind === "joint"));
 const pollVotes = s => (S.svotes || []).filter(v => v.suggestion_id === s.id);
-const pollDone = s => { if (s.decided_at) return true; const vs = pollVotes(s); return pollVoters().every(p => vs.some(v => v.member_id === p.id)); };
+const pollDone = s => { if (s.decided_at) return true; const vs = pollVotes(s); return pollVoters(s).every(p => vs.some(v => v.member_id === p.id)); };
 function pollBlock(s) {
-  const vs = pollVotes(s), voters = pollVoters(), done = pollDone(s), mine = (vs.find(v => v.member_id === ME) || {}).choice;
+  const vs = pollVotes(s), voters = pollVoters(s), done = pollDone(s), mine = (vs.find(v => v.member_id === ME) || {}).choice;
   const counts = s.options.map((_, i) => vs.filter(v => v.choice === i).length), top = Math.max(...counts);
   const winners = s.options.filter((_, i) => counts[i] === top && top > 0);
   const canVote = !IS_GUEST && voters.some(p => p.id === ME) && !done;
   const waiting = voters.filter(p => !vs.some(v => v.member_id === p.id)).map(p => p.name);
   return `<div class="card" style="display:flex;flex-direction:column;gap:10px">
-    <div class="gline" style="margin:0"><p class="eyebrow">Vote · everyone must vote</p><span class="sub" style="margin:0;font-size:12.5px">${done ? `${vs.length} voted` : `${vs.length} of ${voters.length} voted`}</span></div>
+    <div class="gline" style="margin:0"><p class="eyebrow">Vote · ${s.kind === "joint" ? "everyone in the house, basement included" : "everyone must vote"}</p><span class="sub" style="margin:0;font-size:12.5px">${done ? `${vs.length} voted` : `${vs.length} of ${voters.length} voted`}</span></div>
     ${s.options.map((o, i) => { const who = vs.filter(v => v.choice === i).map(v => (person(v.member_id) || {}).name || v.voter_name || "Former housemate");
       return `<button class="opt ${mine === i ? "on" : ""} ${done && counts[i] === top && top > 0 ? "win" : ""}" ${canVote ? `data-action="vote-sug" data-id="${s.id}" data-id2="${i}"` : "disabled"}>
         <span class="ot"><b>${esc(o)}</b><span>${who.length ? esc(who.join(", ")) : "No votes yet"}</span></span>
         <span class="oc tn">${counts[i]}</span><i style="width:${voters.length ? counts[i] / voters.length * 100 : 0}%"></i></button>`; }).join("")}
     <p class="sub" style="margin:0;font-size:13px">${s.result ? `Everyone voted. Result: <b>${esc(s.result)}</b>.` : done
       ? (winners.length === 1 ? `Everyone has voted. Result: <b>${esc(winners[0])}</b>.` : `Everyone has voted. It's a tie between ${winners.map(esc).join(" and ")}.`)
-      : `Waiting on ${esc(waiting.join(", "))}. You can change your vote until everyone has voted.`}</p></div>`;
+      : `Waiting on ${esc(waiting.join(", "))}. ${IS_BASEMENT && s.kind !== "joint" ? "This one is for the upstairs housemates, so you don't vote on it." : "You can change your vote until everyone has voted."}`}</p></div>`;
 }
 const authorName = s => (person(s.author_id) || {}).name || s.author_name || "A former housemate";
 
@@ -1983,7 +1993,7 @@ async function loadMeetings() {
   MEET_READY = !m.error;
   S.meetings = m.data || []; S.calls = c.data || []; S.votes = v.data || [];
   S.sugs = s.data || [];
-  S.notices = (n.data || []).filter(x => ROLE !== "landlord" || x.landlord);
+  S.notices = (n.data || []).filter(x => (ROLE !== "landlord" || x.landlord) && !(IS_BASEMENT && x.kind === "call"));
 }
 
 function renderMeet() {
@@ -2045,7 +2055,9 @@ function renderMeet() {
         ${c.called_by === ME || IS_MANAGER ? `<button class="btn ghost tiny" data-action="cancel-call">Withdraw</button>` : ""}
       </div></section>`;
   } else {
-    side = `<section class="card"><p class="eyebrow">Need to meet sooner?</p>
+    side = IS_BASEMENT ? `<section class="card"><p class="eyebrow">Joint suggestions</p>
+      <p class="sub" style="margin:8px 0 0">Tap + to post something that involves everyone in the house. It's marked <b>Joint</b>, and everyone, upstairs and basement, votes on it. You can vote on any Joint suggestion.</p></section>`
+    : `<section class="card"><p class="eyebrow">Need to meet sooner?</p>
       <p class="sub" style="margin:8px 0 14px">Tap the calendar button to suggest an earlier time. Everyone gets a notification and votes on it.</p>
       <button class="btn" data-action="call">${ic("cal")}Call an early meeting</button></section>`;
   }
@@ -2054,7 +2066,7 @@ function renderMeet() {
   const row = s => `<button class="sug" data-action="open-sug" data-id="${s.id}">
       <span class="kind k-${s.kind}">${KIND_LABEL[s.kind] || "Idea"}</span>
       <span class="t"><b>${esc(s.title)}</b><span>${meetingById(s.meeting_id) ? "Discussed " + fmtD(mStart(meetingById(s.meeting_id))) : "Next meeting"} · ${esc(authorName(s))}</span></span>
-      ${s.options ? `<span class="pl ${pollDone(s) ? "plain" : "brass"}">${pollDone(s) ? (s.result ? "Decided: " + esc(s.result) : "Decided") : `Vote ${pollVotes(s).length}/${pollVoters().length}`}</span>` : ""}
+      ${s.options ? `<span class="pl ${pollDone(s) ? "plain" : "brass"}">${pollDone(s) ? (s.result ? "Decided: " + esc(s.result) : "Decided") : `Vote ${pollVotes(s).length}/${pollVoters(s).length}`}</span>` : ""}
       ${(s.files || []).length ? `<span class="clip">${ic("clip")}${s.files.length}</span>` : ""}</button>`;
   const groups = ahead.map(m => ({ label:`For ${fmtD(mStart(m))}`, list:S.sugs.filter(s => s.meeting_id === m.id) })).filter(g => g.list.length);
   const loose = S.sugs.filter(s => !meetingById(s.meeting_id));
@@ -2066,7 +2078,7 @@ function renderMeet() {
   return `
     <p class="eyebrow">Group Meeting</p>
     <h2 class="sec">Talk it through, together</h2>
-    <p class="lede">Post anything the house should decide on. Each suggestion is listed under the meeting it will be discussed at.</p>
+    <p class="lede">${IS_BASEMENT ? "Post anything that involves the whole house as a Joint suggestion." : "Post anything the house should decide on. Mark it Joint if it involves the basement too."} Each suggestion is listed under the meeting it will be discussed at.</p>
     <div class="meetgrid">${card}${side}</div>
     ${list || `<p class="empty">No suggestions yet. Tap + to add the first one.</p>`}
     ${past.length ? `<h3 class="sub-h" style="margin-top:34px">House record · past meetings</h3>
@@ -2110,10 +2122,13 @@ function openSug(id) {
 }
 
 function openNew() {
-  draft = { kind:"rule", files:[] };
+  draft = { kind: IS_BASEMENT ? "joint" : "rule", files:[] };
   const opts = meetingsAhead().filter(m => mStart(m) > new Date()).map(m => `<option value="${m.id}">${fmtD(mStart(m))}, ${fmtT(mStart(m))}</option>`).join("");
   openModal("New suggestion", `
-    <div class="kinds" id="kinds">${Object.entries(KIND_LABEL).map(([k, l]) => `<button aria-pressed="${k === "rule"}" data-action="kind" data-id="${k}">${l}</button>`).join("")}</div>
+    ${IS_BASEMENT
+      ? `<div class="row"><span class="kind k-joint" style="width:auto">Joint</span><span class="sub" style="margin:0;font-size:13px">Involves everyone in the house. Everyone votes.</span></div>`
+      : `<div class="kinds" id="kinds">${Object.entries(KIND_LABEL).map(([k, l]) => `<button aria-pressed="${k === "rule"}" data-action="kind" data-id="${k}">${l}</button>`).join("")}</div>
+         <p class="sub" style="margin:-6px 0 0;font-size:12.5px">Pick <b>Joint</b> if it involves the basement too. They'll be able to vote on it.</p>`}
     <label class="f">Title<input id="nTitle" maxlength="120" placeholder="e.g. Quiet hours after midnight"></label>
     <label class="f">Details<textarea id="nBody" placeholder="What's happening, and what do you suggest?"></textarea></label>
     ${POLLS_READY ? `<div><label class="f" style="margin-bottom:6px">Vote</label>
@@ -2196,7 +2211,7 @@ Object.assign(actions, {
   close: () => closeModal(),
   "open-sug": (el, id) => openSug(id),
   "show-past": () => { ui.showPast = !ui.showPast; render(); },
-  kind: (el, id) => { if (!draft) return; draft.kind = id; document.querySelectorAll("#kinds button").forEach(b => b.setAttribute("aria-pressed", b === el)); },
+  kind: (el, id) => { if (!draft || IS_BASEMENT) return; draft.kind = id; document.querySelectorAll("#kinds button").forEach(b => b.setAttribute("aria-pressed", b === el)); },
   "ask-del-sug": (el, id) => { document.getElementById("delZone").innerHTML = `<div class="confirmbar">Delete this for everyone? It can't be undone.
       <button class="btn tiny danger" data-action="del-sug" data-id="${id}">Delete</button><button class="btn tiny" data-action="close">Keep</button></div>`; },
   "del-sug": async (el, id) => { closeModal(); await act("delete_suggestion", { p_id:id }, "Suggestion deleted."); },
@@ -2235,7 +2250,7 @@ Object.assign(actions, {
     const ok = await act("add_suggestion", args, "Posted to the meeting list.");
     if (ok) closeModal(); else { btn.disabled = false; btn.textContent = "Post suggestion"; }
   },
-  call: () => { if (openCall_()) return; openCallForm(); },
+  call: () => { if (IS_BASEMENT) return toast("Early meetings are called by the upstairs housemates."); if (openCall_()) return; openCallForm(); },
   "send-call": async () => {
     const st = fromInputs(val("cDay"), val("cTime")); if (!st) return toast("Pick a day and a start time.");
     const en = val("cEnd") ? fromInputs(val("cDay"), val("cEnd")) : null;
@@ -2375,7 +2390,7 @@ function render() {
   if (!SHELL) buildShell();
   const waiting = IS_MANAGER && MEMBERS ? MEMBERS.filter(m => m.status === "pending").length : 0;
   const nSug = (() => { const n = meetingsAhead()[0]; return n ? S.sugs.filter(s => s.meeting_id === n.id).length : 0; })();
-  document.getElementById("who").innerHTML = SHARED ? `${esc(nameOf(ME))} · ${ROLE === "manager" ? "manager" : ROLE === "landlord" ? "landlord" : ROLE === "guest" ? "guest" : esc(unitOf(ME))}` : "This device only";
+  document.getElementById("who").innerHTML = SHARED ? `${esc(nameOf(ME))} · ${ROLE === "manager" ? "manager" : ROLE === "landlord" ? "landlord" : ROLE === "guest" ? "guest" : ROLE === "basement" ? esc(unitOf(ME) || "basement") : esc(unitOf(ME))}` : "This device only";
   document.getElementById("tabs").innerHTML = TABS.map(([id, label]) =>
     `<button data-action="tab" data-id="${id}" role="tab" aria-current="${ui.tab === id}"><span class="lbl">${label}${
       id === "house" && waiting ? `<span class="count">${waiting}</span>` : ""}${id === "meet" && nSug ? `<span class="count">${nSug}</span>` : ""}</span></button>`).join("") + `<span class="ink" id="ink"></span>`;
@@ -2398,6 +2413,7 @@ function place() {
   const i = Math.max(0, TABS.findIndex(t => t[0] === ui.tab));
   const tr = document.getElementById("track"); if (tr) tr.style.transform = `translateX(${-i * 100}%)`;
   const f = document.getElementById("fabs"); if (f) f.classList.toggle("off", ui.tab !== "meet" || IS_GUEST || (SHARED && !MEET_READY));
+  const fc = document.querySelector('#fabs [data-action="call"]'); if (fc) fc.style.display = IS_BASEMENT ? "none" : "";
 }
 function moveInk() {
   const t = document.getElementById("tabs"); if (!t) return;
@@ -2407,7 +2423,7 @@ function moveInk() {
   const btn = b.parentElement;
   if (btn.offsetLeft < t.scrollLeft || btn.offsetLeft + btn.offsetWidth > t.scrollLeft + t.clientWidth) t.scrollTo({ left: btn.offsetLeft - 40, behavior:"smooth" });
 }
-function goTab(id) { ui.tab = id; ui.replyTo = null; ui.editZone = null; render(); }
+function goTab(id) { if (!TABS.some(t => t[0] === id)) id = TABS[0][0]; ui.tab = id; ui.replyTo = null; ui.editZone = null; render(); }
 
 // --- swipe between tabs on phones ---
 function wireSwipe() {
@@ -2479,11 +2495,12 @@ function renderWelcome() {
   document.getElementById("wtiles").innerHTML = `
     <button class="wt hot" data-go="meet"><small>${call ? "Early meeting vote" : "Group meeting"}</small>
       <b>${call ? fmtD(new Date(call.starts_at)) + ", " + fmtT(new Date(call.starts_at)) : next ? `${sameDay(mStart(next), now) ? (mStart(next).getHours() >= 17 ? "Tonight" : "Today") : fmtD(mStart(next))}, ${fmtT(mStart(next))}` : "Not scheduled"}</b>
-      <span>${call ? (voteOf(call, ME) ? "You've voted" : "Waiting on your vote") : next ? `${S.sugs.filter(s => s.meeting_id === next.id).length} on the agenda` : "Post a suggestion anytime"}</span></button>
-    <button class="wt" data-go="clean"><small>Your cleaning</small><b>${myZone ? esc(myZone.name) : "Nothing this cycle"}</b>
+      <span>${call ? (IS_BASEMENT ? "Called by the upstairs housemates" : voteOf(call, ME) ? "You've voted" : "Waiting on your vote") : next ? `${S.sugs.filter(s => s.meeting_id === next.id).length} on the agenda` : "Post a suggestion anytime"}</span></button>
+    ${IS_BASEMENT ? `<button class="wt" data-go="shop"><small>Groceries</small><b>${S.trips.length} run${S.trips.length === 1 ? "" : "s"} planned</b>
+      <span>Join a run or plan one</span></button>` : `<button class="wt" data-go="clean"><small>Your cleaning</small><b>${myZone ? esc(myZone.name) : "Nothing this cycle"}</b>
       <span>${myZone ? (done[myZone.id] ? "Done for this cycle" : "Due by " + fmtShort(addDays(cycleStart(n + 1), -1))) : "Enjoy the break"}</span></button>
     <button class="wt" data-go="book"><small>Next booking</small><b>${res ? esc(res.name) : "None booked"}</b>
-      <span>${mine ? `${mine.day === today ? "Today" : fmtDay(parseISO(mine.day))} · ${hourLabel(mine.hour)}` : "Tap to book a slot"}</span></button>
+      <span>${mine ? `${mine.day === today ? "Today" : fmtDay(parseISO(mine.day))} · ${hourLabel(mine.hour)}` : "Tap to book a slot"}</span></button>`}
     <button class="wt" data-go="board"><small>Noticeboard</small><b>${open.length} open post${open.length === 1 ? "" : "s"}</b>
       <span>${open.length ? esc(open.sort((x, y) => y.ts - x.ts)[0].text.slice(0, 40)) : "All quiet"}</span></button>`;
 }
@@ -2541,7 +2558,7 @@ setInterval(checkBookingEnd, 20000);
 // 11 AM on the last day of the cleaning cycle. If the board is opened later
 // that day, it still shows once.
 function checkCycleEnd() {
-  if (!ME || !S.config.zones.length) return;
+  if (!ME || IS_BASEMENT || !S.config.zones.length) return;
   const n = cycleIndex(), last = isoOf(addDays(cycleStart(n + 1), -1));
   if (isoOf(todayUTC()) !== last || new Date().getHours() < 11) return;
   const key = `hb:cycle-end:${S.config.anchor}:${S.config.cycleDays}:${n}`;
@@ -2574,6 +2591,8 @@ setInterval(checkCycleEnd, 60000);
     ROLE = who.role || (who.is_manager ? "manager" : "member");
     IS_MANAGER = ROLE === "manager";
     IS_GUEST   = ROLE === "guest";
+    IS_BASEMENT = ROLE === "basement";
+    if (IS_BASEMENT) TABS = ALL_TABS.filter(t => BASEMENT_TABS.has(t[0]));
   } catch (e) {
     document.getElementById("app").innerHTML =
       `<p class="loading">Can't reach the board. Check your connection and reload.</p>`;
