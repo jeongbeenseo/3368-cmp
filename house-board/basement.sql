@@ -40,10 +40,13 @@ end $$;
 alter table suggestions add constraint suggestions_kind_check
   check (kind in ('rule','issue','idea','notice','joint'));
 
--- A unit for them to pick when they register. Rename it, or add more
--- (e.g. "Basement A", "Basement B") from the Housemates tab: any unit whose
--- name starts with "Basement" makes new registrations basement accounts.
-insert into units (name, sort) values ('Basement', 20) on conflict (name) do nothing;
+-- Basement rooms for them to pick when they register. Any unit whose name
+-- starts with "Basement" makes new registrations basement accounts.
+-- (An earlier version made a single "Basement" unit; it becomes Basement A.)
+update units set name = 'Basement A', sort = 20
+ where name = 'Basement' and not exists (select 1 from units where name = 'Basement A');
+insert into units (name, sort) values ('Basement A', 20), ('Basement B', 21), ('Basement C', 22)
+on conflict (name) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- 2. Who's asking: house_writer() = may touch house-only things
