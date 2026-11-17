@@ -488,7 +488,7 @@ async function syncExam(payload: any) {
   // Phones and laptops first: they don't depend on Discord being set up
   await pushAll(e.member_id, {
     title: `📚 ${first} has an exam`,
-    body: `${local}${e.course ? ` · ${e.course}` : ""}. Send good luck vibes!`,
+    body: `${local}${e.course ? ` · ${e.course}` : ""}. Send good luck vibes 🍀 and please be as quiet as you can during quiet hours!`,
     tag: key, url: SITE || "/",
   }).catch(err => console.error("exam push", err));
 
@@ -500,7 +500,7 @@ async function syncExam(payload: any) {
       embeds: [{
         color: 0x5B4BB7,
         title: `📚 ${first} has an exam`,
-        description: [`**${ts(e.starts_at)}** · ${ts(e.starts_at, "R")}`, e.course ? `📖 ${e.course}` : "", "", "Send good luck vibes 🍀"]
+        description: [`**${ts(e.starts_at)}** · ${ts(e.starts_at, "R")}`, e.course ? `📖 ${e.course}` : "", "", "Send good luck vibes 🍀 and please be as quiet as you can during quiet hours!"]
           .filter((l, n) => l || n === 2).join("\n"),
         url: SITE || undefined,
         footer: { text: "House Board calendar" },

@@ -1661,8 +1661,8 @@ function renderExams() {
   }).join("");
   return `
     <h3 class="sub-h">Exams</h3>
-    <p class="sub" style="margin:0 0 6px;max-width:600px">Got one coming up? Pop it on here so we know when to send good luck
-      (and maybe keep it down the night before).</p>
+    <p class="sub" style="margin:0 0 6px;max-width:600px">Got one coming up? Pop it on here so the house knows when to send good luck vibes
+      and keep it as quiet as they can during quiet hours.</p>
     ${rows ? `<ul class="periods bdays exams">${rows}</ul>` : `<p class="sub">No exams on the board. Lucky us.</p>`}
     ${canAddExam() ? `<div class="row" style="margin-top:10px">
       <button class="btn solid" data-action="open-exam">${ic("plus")}My exam's on…</button>
@@ -2628,7 +2628,7 @@ function renderWelcome() {
   // exams in the next three days, as a friendly heads-up rather than a rule
   const soon = examsAhead().filter(e => new Date(e.starts_at) - now < 3 * DAY);
   document.getElementById("wexams").innerHTML = soon.length
-    ? `${ic("bell")}<span>${soon.slice(0, 3).map(e => `<b>${e.member_id === ME ? "You" : esc(examWho(e).split(" ")[0])}</b> ${esc(examWhen(e).replace(" · ", " ").replace(/^(Today|Tomorrow)/, w => w.toLowerCase()))}`).join(" · ")}${soon.length > 3 ? ` · +${soon.length - 3} more` : ""}. ${soon.every(e => e.member_id === ME) ? "You've got this." : "Good luck vibes, please."}</span>`
+    ? `${ic("bell")}<span>${soon.slice(0, 3).map(e => `<b>${e.member_id === ME ? "You" : esc(examWho(e).split(" ")[0])}</b> ${esc(examWhen(e).replace(" · ", " ").replace(/^(Today|Tomorrow)/, w => w.toLowerCase()))}`).join(" · ")}${soon.length > 3 ? ` · +${soon.length - 3} more` : ""}. ${soon.every(e => e.member_id === ME) ? "You've got this." : "Good luck vibes, and please keep quiet hours quiet."}</span>`
     : "";
   const next = meetingsAhead()[0];
   const n = cycleIndex(), a = assignFor(n), done = S.progress[n] || {};
