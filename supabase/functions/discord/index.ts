@@ -15,8 +15,8 @@
 //     - tick (every minute, from discord-laundry.sql) -> "3 minutes left" pings in
 //       #laundry-kitchen, to the person who booked only.
 //
-//     - exams -> a good-luck post in Discord (pinging linked housemates) and a push
-//       notification to every device that installed the board and allowed alerts.
+//     - exams (exam seasons) -> a good-luck post in Discord (pinging linked housemates)
+//       and a push notification to every device that installed the board and allowed alerts.
 //
 //  3. POST from Discord itself (the app's Interactions Endpoint URL): the
 //     /laundryalert and /dryeralert slash commands, which ping whoever was booked last,
@@ -464,7 +464,7 @@ async function interaction(req: Request) {
 }
 
 // ===========================================================================
-// 6. Exams -> a good-luck post in Discord and a push to installed boards
+// 6. Exam seasons -> a good-luck post in Discord and a push to installed boards
 // ===========================================================================
 async function syncExam(payload: any) {
   const key = `exam:${(payload.record ?? payload.old_record)?.id}`;
@@ -480,15 +480,18 @@ async function syncExam(payload: any) {
   const e = payload.record;
   if (!(await claimState(key, "sending", null))) return;          // already handled
 
+  // An exam season runs from the start of its first day to the end of its last day
   const first = String(e.member_name || "Someone").split(" ")[0];
-  const when = new Date(e.starts_at);
-  const local = new Intl.DateTimeFormat("en-US", { timeZone: "America/Toronto", weekday: "short", month: "short",
-    day: "numeric", hour: "numeric", minute: "2-digit" }).format(when);
+  const lastDay = new Date(new Date(e.ends_at).getTime() - 1000);
+  const days = Math.round((new Date(e.ends_at).getTime() - new Date(e.starts_at).getTime()) / 86400000);
+  const md = (d: Date) => new Intl.DateTimeFormat("en-US", { timeZone: "America/Toronto", month: "short", day: "numeric" }).format(d);
+  const range = `${md(new Date(e.starts_at))} – ${md(lastDay)}`;
+  const ask = "Send good luck vibes 🍀 and please be as quiet as you can during quiet hours!";
 
   // Phones and laptops first: they don't depend on Discord being set up
   await pushAll(e.member_id, {
-    title: `📚 ${first} has an exam`,
-    body: `${local}${e.course ? ` · ${e.course}` : ""}. Send good luck vibes 🍀 and please be as quiet as you can during quiet hours!`,
+    title: `📚 ${first}'s exam season: ${range}`,
+    body: `${days} day${days === 1 ? "" : "s"}${e.course ? ` · ${e.course}` : ""}. ${ask}`,
     tag: key, url: SITE || "/",
   }).catch(err => console.error("exam push", err));
 
@@ -499,9 +502,9 @@ async function syncExam(payload: any) {
       ...ping(await pingIds({ except: e.member_id })),
       embeds: [{
         color: 0x5B4BB7,
-        title: `📚 ${first} has an exam`,
-        description: [`**${ts(e.starts_at)}** · ${ts(e.starts_at, "R")}`, e.course ? `📖 ${e.course}` : "", "", "Send good luck vibes 🍀 and please be as quiet as you can during quiet hours!"]
-          .filter((l, n) => l || n === 2).join("\n"),
+        title: `📚 ${first} is in exam season`,
+        description: [`**${ts(e.starts_at, "D")} – ${ts(lastDay.toISOString(), "D")}** (${days} day${days === 1 ? "" : "s"})`,
+          e.course ? `📖 ${e.course}` : "", "", ask].filter((l, n) => l || n === 2).join("\n"),
         url: SITE || undefined,
         footer: { text: "House Board calendar" },
       }],

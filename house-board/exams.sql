@@ -1,28 +1,32 @@
 -- ===========================================================================
--- House Board update: exam times
+-- House Board update: exam seasons
 -- ---------------------------------------------------------------------------
 -- Paste the whole file into Supabase -> SQL Editor -> Run.
 -- Run it AFTER basement.sql and discord-meetings.sql. ADD-ONLY and safe to
 -- run more than once.
 --
+-- Everyone declares their exam season: a stretch of days (e.g. Nov 1 - Nov 20)
+-- when the house should be extra careful about noise.
+--
 -- Anyone who lives here (housemates, the manager, the basement) can put their
--- own exams on the board and take them off again. Nobody can add or remove
--- someone else's, except the manager tidying up. One row per exam, so two
--- people adding at the same moment can't overwrite each other.
+-- own on the board and take it off again. Nobody can add or remove someone
+-- else's, except the manager tidying up. One row per season, so two people
+-- adding at the same moment can't overwrite each other.
 -- ===========================================================================
 
 create table if not exists exams (
   id          uuid primary key default gen_random_uuid(),
   member_id   uuid not null references members(id) on delete cascade,
   member_name text not null,
-  starts_at   timestamptz not null,
-  ends_at     timestamptz,
+  starts_at   timestamptz not null,       -- start of the first day
+  ends_at     timestamptz not null,       -- end of the last day
   course      text,
   created_at  timestamptz not null default now(),
-  check (ends_at is null or ends_at > starts_at),
+  check (ends_at > starts_at),
   check (course is null or length(course) <= 60)
 );
 create index if not exists exams_starts on exams (starts_at);
+
 
 alter table exams enable row level security;
 drop policy if exists "read exams" on exams;
@@ -30,7 +34,8 @@ create policy "read exams" on exams for select to anon using (true);
 grant select on exams to anon;
 
 -- ---------------------------------------------------------------------------
--- Add one of your own
+-- Add your exam season: p_starts is the start of the first day, p_ends the
+-- end of the last day (the board works those out in local time).
 -- ---------------------------------------------------------------------------
 create or replace function add_exam(p_code text, p_starts timestamptz, p_ends timestamptz, p_course text)
 returns uuid language plpgsql security definer set search_path = public as $$
@@ -38,19 +43,20 @@ declare me members; eid uuid;
 begin
   me := writer(p_code);
   if me.id is null or me.role = 'landlord' then raise exception 'Exams are for the people living here'; end if;
-  if p_starts is null then raise exception 'Pick a day and a start time'; end if;
-  if p_starts < now() - interval '1 day' then raise exception 'That one''s already behind you'; end if;
-  if p_ends is not null and p_ends <= p_starts then raise exception 'It has to end after it starts'; end if;
-  if (select count(*) from exams where member_id = me.id and starts_at > now()) >= 30 then
-    raise exception 'That''s a lot of exams. Remove a few old ones first';
+  if p_starts is null or p_ends is null then raise exception 'Pick the first and last day'; end if;
+  if p_ends <= p_starts then raise exception 'The last day is before the first day'; end if;
+  if p_ends < now() then raise exception 'That exam season is already over'; end if;
+  if p_ends - p_starts > interval '62 days' + interval '1 hour' then raise exception 'An exam season can be up to two months'; end if;
+  if (select count(*) from exams where member_id = me.id and ends_at > now()) >= 10 then
+    raise exception 'That''s a lot of exam seasons. Remove an old one first';
   end if;
 
   insert into exams (member_id, member_name, starts_at, ends_at, course)
   values (me.id, me.name, p_starts, p_ends, nullif(left(trim(coalesce(p_course, '')), 60), ''))
   returning id into eid;
 
-  -- keep the table small: exams more than a month old go
-  delete from exams where coalesce(ends_at, starts_at) < now() - interval '30 days';
+  -- keep the table small: seasons that ended over a month ago go
+  delete from exams where ends_at < now() - interval '30 days';
   return eid;
 end; $$;
 
@@ -64,7 +70,7 @@ begin
   me := writer(p_code);
   if me.id is null then raise exception 'Please sign in again'; end if;
   delete from exams where id = p_id and (member_id = me.id or me.is_manager);
-  if not found then raise exception 'That exam isn''t yours'; end if;
+  if not found then raise exception 'That exam season isn''t yours'; end if;
 end; $$;
 
 grant execute on function add_exam(text, timestamptz, timestamptz, text), drop_exam(text, uuid) to anon;
@@ -76,7 +82,7 @@ begin
 end $$;
 
 -- ===========================================================================
--- Notifications for new exams
+-- Notifications when someone declares an exam season
 --   * Cindy posts them in Discord (pinging linked housemates)
 --   * phones / laptops that installed the board get a push notification
 -- Both are sent by the `discord` Edge Function, so redeploy it after this.
@@ -135,7 +141,7 @@ end; $$;
 revoke execute on function push_targets(uuid) from public, anon, authenticated;
 grant  execute on function push_targets(uuid) to service_role;
 
--- Tell the Edge Function when an exam is added or removed (discord_notify()
+-- Tell the Edge Function when an exam season is added or removed (discord_notify()
 -- comes from discord-meetings.sql; skipped quietly if that isn't set up).
 do $$
 begin

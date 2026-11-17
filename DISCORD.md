@@ -25,9 +25,10 @@ Everything here is handled by one Supabase Edge Function (`supabase/functions/di
    from, or lets you type a hex. Then she creates a role with that name and colour and
    gives it to you (plus `Housemate`, if that role exists). Press it again any time to
    change your colour or name. Only linked housemates can use it.
-7. **Exams**: when someone adds an exam on the board's Calendar, Cindy posts a good-luck
-   card (in #exams if you give it a webhook, otherwise #noticeboard) and pings every
-   linked housemate except them. Removing the exam removes the post. Every device that
+7. **Exam seasons**: when someone declares their exam season on the board's Calendar
+   (e.g. Nov 1 – Nov 20), Cindy posts a card asking for good luck vibes and quiet during
+   quiet hours (in #exams if you give it a webhook, otherwise #noticeboard) and pings
+   every linked housemate except them. Removing it removes the post. Every device that
    installed the board and turned on alerts also gets a push notification.
 
 Nothing secret is in this repo. Secrets live in Supabase → Edge Functions → Secrets.
