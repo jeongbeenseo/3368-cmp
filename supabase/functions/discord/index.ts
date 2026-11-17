@@ -29,8 +29,7 @@
 // Secrets (Supabase -> Edge Functions -> Secrets), never in the repo:
 //   DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_BOT_TOKEN, DISCORD_GUILD_ID, DISCORD_PUBLIC_KEY,
 //   DISCORD_NOTICEBOARD_WEBHOOK, DISCORD_MEETINGS_WEBHOOK, DISCORD_LAUNDRY_WEBHOOK, WEBHOOK_SECRET, SITE_URL
-// Optional: DISCORD_EXAMS_WEBHOOK (else exams go to #noticeboard),
-//           DISCORD_HOUSE_ROLE (a shared role everyone verified also gets; default "Housemate", skipped if missing)
+// Optional: DISCORD_EXAMS_WEBHOOK (else exam seasons go to #noticeboard)
 // Supabase provides SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY itself.
 
 import nacl from "npm:tweetnacl@1.0.3";
@@ -603,7 +602,6 @@ const PALETTE: [string, string, string][] = [
   ["Teddy", "#A07553", "🧸"], ["Sand", "#D4B48C", "🏖️"], ["Elephant", "#8B8D98", "🐘"], ["Cloud", "#F5F5F5", "🤍"],
 ];
 const RESERVED = ["everyone", "here", "joey", "landlord", "guest", "housemate", "cindy", "admin", "mod", "moderator", "bot"];
-const HOUSE_ROLE = () => env("DISCORD_HOUSE_ROLE") || "Housemate";
 
 function parseHex(v: string): number | null {
   let h = v.trim().replace(/^#/, "");
@@ -753,19 +751,20 @@ async function makeRole(i: any, name: string, color: number) {
       mine = clash;
     }
 
+    // A brand-new role gets exactly what the other housemates' roles have: the same
+    // server permissions and the same access in every channel.
+    const template = mine ? null : await houseTemplate(roles, user, guild);
     const role = mine
       ? await bot("PATCH", `/guilds/${guild}/roles/${mine.id}`, { name, color })
-      : await bot("POST", `/guilds/${guild}/roles`, { name, color, permissions: "0", mentionable: true, hoist: false });
+      : await bot("POST", `/guilds/${guild}/roles`, { name, color, permissions: template?.permissions ?? "0", mentionable: true, hoist: false });
+    if (template) await copyChannelAccess(guild, template.id, role.id);
     await rpc("discord_set_role", { p_discord_id: user, p_role_name: name, p_role_id: role.id });
     await bot("PUT", `/guilds/${guild}/members/${user}/roles/${role.id}`);
-    const house = roles.find(r => r.name.toLowerCase() === HOUSE_ROLE().toLowerCase() && !r.managed);
-    if (house && !(i.member.roles ?? []).includes(house.id)) {
-      await bot("PUT", `/guilds/${guild}/members/${user}/roles/${house.id}`).catch(e => console.error("house role", e));
-    }
 
     return { content: "", components: [], allowed_mentions: { parse: [] }, embeds: [{
       color, title: mine ? `🎨 Updated! You're now ${name} in ${hex}` : `🎉 You're in, ${name}!`,
-      description: `${mine ? "Your role has the new colour." : `I made your role <@&${role.id}> in **${hex}** and gave it to you.`}\nWant a different colour later? Press **Get my role** again.`,
+      description: `${mine ? "Your role has the new colour." : `I made your role <@&${role.id}> in **${hex}** and gave it to you.`}\nWant a different colour later? Press **Get my role** again.` +
+        (!mine && !template ? "\n\n⚠️ I couldn't find another housemate's role to copy access from, so Joey needs to give your role access to the channels." : ""),
     }] };
   } catch (e) {
     console.error("make role", e);
@@ -773,6 +772,27 @@ async function makeRole(i: any, name: string, color: number) {
     if (s.includes("-> 403")) return fail("I'm not allowed to manage roles. Joey: give Cindy the **Manage Roles** permission and drag her role above everyone's name roles.");
     if (s.includes("belongs to someone else")) return fail("That role belongs to another housemate. Pick a different name.");
     return fail("Something went wrong making your role. Try again in a minute, or tell Joey.");
+  }
+}
+
+// Another housemate's name role to copy (never the manager's, the landlord's,
+// a guest's, a bot's or @everyone).
+async function houseTemplate(roles: any[], user: string, guild: string) {
+  const rows: { discord_role_id: string | null; role_name: string }[] = await rpc("discord_house_roles", { p_except: user });
+  for (const r of rows) {
+    const t = roles.find(x => x.id === r.discord_role_id) ?? roles.find(x => x.name.toLowerCase() === String(r.role_name).toLowerCase());
+    if (t && !t.managed && t.id !== guild && !RESERVED.includes(t.name.toLowerCase())) return t;
+  }
+  return null;
+}
+
+async function copyChannelAccess(guild: string, from: string, to: string) {
+  const channels: any[] = await bot("GET", `/guilds/${guild}/channels`);
+  for (const ch of channels) {
+    const o = (ch.permission_overwrites ?? []).find((x: any) => x.id === from && x.type === 0);
+    if (!o) continue;
+    await bot("PUT", `/channels/${ch.id}/permissions/${to}`, { type: 0, allow: o.allow, deny: o.deny })
+      .catch(e => console.error("copy access", ch.name, e));
   }
 }
 

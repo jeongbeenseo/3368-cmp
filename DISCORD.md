@@ -23,7 +23,8 @@ Everything here is handled by one Supabase Edge Function (`supabase/functions/di
    Cindy's message in #verification. She asks your first name (filled in for you) and,
    optionally, a hex colour. Leave the colour blank and she shows a palette of 20 to pick
    from, or lets you type a hex. Then she creates a role with that name and colour and
-   gives it to you (plus `Housemate`, if that role exists). Press it again any time to
+   gives it to you. A new role copies another housemate's role exactly (server permissions
+   and access in every channel), so everyone has the same power. Press it again any time to
    change your colour or name. Only linked housemates can use it.
 7. **Exam seasons**: when someone declares their exam season on the board's Calendar
    (e.g. Nov 1 – Nov 20), Cindy posts a card asking for good luck vibes and quiet during
@@ -90,6 +91,7 @@ Posting one again with the same name just updates it.
       with `{"name":"setupverify","description":"Post Cindy's Get my role button here","type":1,"default_member_permissions":"32"}`.
    5. In Discord: **Server Settings → Roles → Cindy**: turn on **Manage Roles**, and drag
       Cindy's role **above** everyone's name roles (Discord only lets her edit roles below her own).
+      She can only hand out permissions she has herself, which is already true if she's an admin.
    6. Go to #verification and type `/setupverify`. Cindy posts the welcome message with the
       button. Pin it.
 
@@ -110,8 +112,9 @@ else until people link.
   their House Board name, or their first name (`Derek Smith` → `Derek`). Someone who
   already has a hand-made role with the name they type keeps it, just recoloured.
 - The manager gets `Joey` (set by `discord.sql`)
-- If a role called `Housemate` exists, everyone who picks a role also gets it. Give
-  `Housemate` access to the house channels and new people are let in automatically.
+- Every housemate's role has the same power and access. A role Cindy creates copies
+  another linked housemate's role (never Joey's, Cindy's, Landlord's or Guest's), including
+  its permission settings in every channel, so new people are let in automatically.
 
 To change someone's by hand: `update members set discord_role = 'Milo' where name = '...';`
 

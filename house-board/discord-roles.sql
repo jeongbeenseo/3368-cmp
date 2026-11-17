@@ -34,6 +34,21 @@ begin
   update members set discord_role = p_role_name, discord_role_id = p_role_id where discord_id = p_discord_id;
 end; $$;
 
+-- The other housemates' roles, so a new role can copy their permissions and
+-- channel access. Housemates only: not the manager, landlord, guests or basement.
+-- Server only.
+create or replace function discord_house_roles(p_except text)
+returns table (discord_role_id text, role_name text)
+language plpgsql security definer set search_path = public as $$
+begin
+  if not is_server() then raise exception 'Not allowed'; end if;
+  return query select m.discord_role_id, coalesce(m.discord_role, split_part(m.name, ' ', 1))
+    from members m
+   where m.status = 'active' and m.role = 'member' and m.discord_id is not null
+     and m.discord_id is distinct from p_except
+   order by m.discord_role_id is null, m.created_at;
+end; $$;
+
 -- Is this role someone else's? Server only.
 create or replace function discord_role_taken(p_role_id text, p_discord_id text)
 returns boolean language plpgsql security definer set search_path = public as $$
@@ -69,10 +84,12 @@ end; $$;
 revoke execute on function discord_member(text)                    from public, anon, authenticated;
 revoke execute on function discord_set_role(text, text, text)      from public, anon, authenticated;
 revoke execute on function discord_role_taken(text, text)          from public, anon, authenticated;
+revoke execute on function discord_house_roles(text)               from public, anon, authenticated;
 revoke execute on function discord_link(text, text, text)          from public, anon, authenticated;
 grant  execute on function discord_member(text)                    to service_role;
 grant  execute on function discord_set_role(text, text, text)      to service_role;
 grant  execute on function discord_role_taken(text, text)          to service_role;
+grant  execute on function discord_house_roles(text)               to service_role;
 grant  execute on function discord_link(text, text, text)          to service_role;
 
 select name, discord_name, discord_role, discord_role_id from members where discord_id is not null order by name;
