@@ -486,7 +486,7 @@ async function syncExam(payload: any) {
   const days = Math.round((new Date(e.ends_at).getTime() - new Date(e.starts_at).getTime()) / 86400000);
   const md = (d: Date) => new Intl.DateTimeFormat("en-US", { timeZone: "America/Toronto", month: "short", day: "numeric" }).format(d);
   const range = `${md(new Date(e.starts_at))} – ${md(lastDay)}`;
-  const ask = "Send good luck vibes 🍀 and please be as quiet as you can during quiet hours (from 12 midnight)!";
+  const ask = "Send good luck vibes 🍀 and please be as quiet as you can during quiet hours (12 midnight to 6 AM)!";
 
   // Phones and laptops first: they don't depend on Discord being set up
   await pushAll(e.member_id, {

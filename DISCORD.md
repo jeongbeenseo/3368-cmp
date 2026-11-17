@@ -27,7 +27,7 @@ Everything here is handled by one Supabase Edge Function (`supabase/functions/di
    change your colour or name. Only linked housemates can use it.
 7. **Exam seasons**: when someone declares their exam season on the board's Calendar
    (e.g. Nov 1 – Nov 20), Cindy posts a card asking for good luck vibes and quiet during
-   quiet hours (from 12 midnight) (in #exams if you give it a webhook, otherwise #noticeboard) and pings
+   quiet hours (12 midnight to 6 AM) (in #exams if you give it a webhook, otherwise #noticeboard) and pings
    every linked housemate except them. Removing it removes the post. Every device that
    installed the board and turned on alerts also gets a push notification.
 

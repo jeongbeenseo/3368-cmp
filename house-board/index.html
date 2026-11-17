@@ -1667,7 +1667,7 @@ function renderExams() {
   return `
     <h3 class="sub-h">Exam seasons</h3>
     <p class="sub" style="margin:0 0 6px;max-width:600px">Exam season coming up? Pop your dates on here so the house knows when to send
-      good luck vibes and be extra quiet during quiet hours, from 12 midnight.</p>
+      good luck vibes and be extra quiet during quiet hours, 12 midnight to 6 AM.</p>
     ${rows ? `<ul class="periods bdays exams">${rows}</ul>` : `<p class="sub">Nobody's in exam season. Lucky us.</p>`}
     ${canAddExam() ? `<div class="row" style="margin-top:10px">
       <button class="btn solid" data-action="open-exam">${ic("plus")}My exam season is…</button>
@@ -2649,7 +2649,7 @@ function renderWelcome() {
     const who = e.member_id === ME ? (on ? "You're" : "Your") : esc(examWho(e).split(" ")[0]) + (on ? " is" : "'s");
     return on ? `<b>${who}</b> in exam season until ${mdShort(b)}` : `<b>${who}</b> exam season starts ${mdShort(a)}`; };
   document.getElementById("wexams").innerHTML = soon.length
-    ? `${ic("bell")}<span>${soon.slice(0, 3).map(e => soonText(e)).join(" · ")}${soon.length > 3 ? ` · +${soon.length - 3} more` : ""}. ${soon.every(e => e.member_id === ME) ? "You've got this." : "Good luck vibes, and please keep it quiet from midnight."}</span>`
+    ? `${ic("bell")}<span>${soon.slice(0, 3).map(e => soonText(e)).join(" · ")}${soon.length > 3 ? ` · +${soon.length - 3} more` : ""}. ${soon.every(e => e.member_id === ME) ? "You've got this." : "Good luck vibes, and please keep it quiet from midnight to 6 AM."}</span>`
     : "";
   const next = meetingsAhead()[0];
   const n = cycleIndex(), a = assignFor(n), done = S.progress[n] || {};
