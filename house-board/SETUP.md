@@ -14,6 +14,7 @@ structural.
 | `config.js` | **The only file you edit.** Your two Supabase values. |
 | `schema.sql` | Run once in Supabase. Contains no codes, safe to commit. |
 | `basement.sql` | Adds basement accounts and Joint suggestions. Run after `meetings.sql`, `polls.sql` and `keep-records.sql`. |
+| `exams.sql` | Lets everyone put their exam times on the Calendar. Run after `basement.sql`. |
 | `sw.js`, `manifest.json`, `icon*.png` | Make it installable as an app. |
 
 ---

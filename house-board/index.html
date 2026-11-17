@@ -437,6 +437,12 @@
   .sheet h1{font-family:var(--display);font-weight:500;font-size:64px;line-height:1;margin:8px 0 0;letter-spacing:-.02em;text-wrap:balance}
   .sheet h1 em{font-style:italic;color:var(--gilt)}
   .sheet .date{opacity:.7;margin-top:10px;font-size:15px}
+  .sheet .wexams{margin-top:14px;font-size:14px;display:flex;align-items:flex-start;gap:8px;line-height:1.45}
+  .sheet .wexams:empty{display:none}
+  .sheet .wexams .ico{flex:none;margin-top:2px;color:var(--gilt)}
+  .sheet .wexams span{opacity:.85}
+  .exams .range{width:230px}
+  @media (max-width:560px){ .exams li{flex-wrap:wrap;row-gap:2px} .exams .range{width:auto;flex-basis:calc(100% - 20px)} }
   .wtiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
   .wt{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:14px 16px;text-align:left;
       cursor:pointer;color:inherit;display:flex;flex-direction:column;gap:4px;min-width:0;font:inherit}
@@ -585,10 +591,11 @@ const S = {
   notes: [],
   bookings: [],
   birthdays: {},          // { memberId: "MM-DD" }
+  exams: [],              // rows from the exams table
   roster: [],             // active members: {id, name, unit, is_manager}
   meetings: [], calls: [], votes: [], sugs: [], notices: []
 };
-let MEET_READY = false, POLLS_READY = false;
+let MEET_READY = false, POLLS_READY = false, EXAMS_READY = false;
 
 let CODE = null, ME = null, ROLE = "member", IS_MANAGER = false, IS_GUEST = false, IS_BASEMENT = false,
     MEMBERS = null, UNITS = [];
@@ -634,6 +641,8 @@ async function loadAll() {
     if (!S.roster.length) S.roster = [{ id:"me", name:"Joseph", unit:"Master A", is_manager:true }];
     ME = S.roster[0].id; ROLE = "manager"; IS_MANAGER = true; IS_GUEST = false;
     if (!ui.res) ui.res = S.config.resources[0]?.id || null;
+    if (!Array.isArray(S.exams)) S.exams = [];
+    EXAMS_READY = true;
     local.set("hb:solo", S);
     return;
   }
@@ -667,6 +676,14 @@ async function loadAll() {
 
   if (!ui.res) ui.res = S.config.resources[0]?.id || null;
   try { await loadMeetings(); } catch (e) { MEET_READY = false; }
+  await loadExams();
+}
+
+async function loadExams() {
+  if (!SHARED) { EXAMS_READY = true; return; }
+  const { data, error } = await SB.from("exams").select("*").order("starts_at");
+  EXAMS_READY = !error;            // false until exams.sql has been run
+  S.exams = data || [];
 }
 
 async function loadMembers() {
@@ -717,6 +734,7 @@ function subscribe() {
     .on("postgres_changes", { event:"*", schema:"public", table:"call_votes" }, bump)
     .on("postgres_changes", { event:"*", schema:"public", table:"suggestions" }, bump)
     .on("postgres_changes", { event:"*", schema:"public", table:"suggestion_votes" }, bump)
+    .on("postgres_changes", { event:"*", schema:"public", table:"exams" }, bump)
     .on("postgres_changes", { event:"INSERT", schema:"public", table:"notices" }, p => {
       const n = p.new || {};
       if (ROLE === "landlord" && !n.landlord) return;
@@ -1126,7 +1144,7 @@ const KINDS = {                       // the kinds you can pick when adding a da
 // Grocery runs aren't stored here — they're read straight off the Grocery tab,
 // so posting a run puts it on the calendar and cancelling one takes it off.
 const KIND_COLOR = { off:"var(--c4)", utm:"var(--c5)", house:"var(--c1)",
-                     shop:"var(--c0)", bday:"var(--c3)", meet:"var(--brass)" };
+                     shop:"var(--c0)", bday:"var(--c3)", meet:"var(--brass)", exam:"var(--c2)" };
 
 function dayItems(iso) {
   const out = ll().dates.filter(d => d.to ? (iso >= d.date && iso <= d.to) : d.date === iso)
@@ -1141,6 +1159,11 @@ function dayItems(iso) {
     const st = new Date(m.starts_at);
     if (localIso(st) === iso) out.unshift({ id: m.id, kind: "meet", removable: false,
       label: `Group meeting · ${span(st, m.ends_at ? new Date(m.ends_at) : null)}${m.landlord ? " · landlord" : ""}` });
+  });
+  (S.exams || []).forEach(e => {
+    const st = new Date(e.starts_at);
+    if (localIso(st) === iso) out.push({ id: "x" + e.id, kind: "exam", removable: false,
+      label: `${examWho(e)}'s exam · ${span(st, e.ends_at ? new Date(e.ends_at) : null)}` });
   });
   S.trips.filter(t => t.date === iso).forEach(t => out.push({
     id: t.id, kind: "shop", removable: false,
@@ -1354,6 +1377,12 @@ function searchCal(q) {
     if (`${p.name} birthday`.toLowerCase().includes(t))
       out.push({ kind:"bday", label:`${p.name}'s birthday`, md, id:"b" + id });
   });
+  (S.exams || []).forEach(e => {
+    if (`${examWho(e)} exam ${e.course || ""}`.toLowerCase().includes(t)) {
+      const d = localIso(new Date(e.starts_at));
+      out.push({ kind:"exam", label:`${examWho(e)}'s exam${e.course ? " · " + e.course : ""}`, from:d, to:d, id:"x" + e.id });
+    }
+  });
   (S.meetings || []).forEach(m => {
     if ("group meeting".includes(t) || (m.agenda || "").toLowerCase().includes(t)) {
       const d = localIso(new Date(m.starts_at));
@@ -1436,6 +1465,7 @@ function renderCal() {
             : ""}</span>
         ${e.kind === "shop" ? `<span class="src">Grocery Runs</span>` : ""}
         ${e.kind === "bday" ? `<span class="src">Birthday</span>` : ""}
+        ${e.kind === "exam" ? `<span class="src">Exam</span>` : ""}
         ${e.kind === "meet" ? `<span class="src">Group Meeting</span>` : ""}
         ${IS_MANAGER && e.removable
           ? `<button class="btn ghost tiny" data-action="del-date" data-id="${e.id}">Remove</button>` : ""}
@@ -1523,6 +1553,8 @@ function renderCal() {
 
     ${rotLists}
 
+    ${renderExams()}
+
     <h3 class="sub-h">Birthdays</h3>
     ${(() => {
       const rows = people()
@@ -1573,6 +1605,52 @@ function renderCal() {
 }
 
 // ===========================================================================
+// Exams: everyone pops theirs on the board, so the house knows when to send
+// good luck. Kept deliberately low-key: no rules, just times.
+// ===========================================================================
+const examWho = e => (person(e.member_id) || {}).name || e.member_name || "A housemate";
+const examEnd = e => e.ends_at ? new Date(e.ends_at) : new Date(new Date(e.starts_at).getTime() + 3 * 3600000);
+const examsAhead = () => (S.exams || []).filter(e => examEnd(e) > new Date())
+  .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
+const canAddExam = () => !IS_GUEST && ROLE !== "landlord";
+const examWhen = e => { const st = new Date(e.starts_at); return `${dayWord(st)} · ${span(st, e.ends_at ? new Date(e.ends_at) : null)}`; };
+
+function renderExams() {
+  if (!EXAMS_READY) return IS_MANAGER ? `
+    <h3 class="sub-h">Exams</h3>
+    <p class="locked">Run <b>exams.sql</b> in Supabase to switch this on.</p>` : "";
+  const now = new Date();
+  const rows = examsAhead().map(e => {
+    const st = new Date(e.starts_at), live = st <= now;
+    return `<li class="${e.member_id === ME ? "on" : ""}"><em style="background:${KIND_COLOR.exam}"></em>
+      <span class="range">${esc(examWhen(e))}</span>
+      <span style="flex:1">${esc(examWho(e))}${e.course ? `<span class="sub" style="font-size:12.5px"> · ${esc(e.course)}</span>` : ""}</span>
+      ${live ? `<span class="nowtag">now</span>` : ""}
+      ${e.member_id === ME || IS_MANAGER
+        ? `<button class="btn ghost tiny" data-action="drop-exam" data-id="${e.id}">Remove</button>` : ""}
+    </li>`;
+  }).join("");
+  return `
+    <h3 class="sub-h">Exams</h3>
+    <p class="sub" style="margin:0 0 6px;max-width:600px">Got one coming up? Pop it on here so we know when to send good luck
+      (and maybe keep it down the night before).</p>
+    ${rows ? `<ul class="periods bdays exams">${rows}</ul>` : `<p class="sub">No exams on the board. Lucky us.</p>`}
+    ${canAddExam() ? `<div class="row" style="margin-top:10px">
+      <button class="btn solid" data-action="open-exam">${ic("plus")}My exam's on…</button></div>` : ""}`;
+}
+
+function openExamForm() {
+  openModal("Add an exam", `
+    <h2>When's the exam?</h2>
+    <p class="sub">Just the time is plenty. It shows on the calendar for everyone, and you can take it off whenever.</p>
+    <div class="two"><label class="f">Day<input id="xDay" type="date" min="${localIso(new Date())}" value="${localIso(new Date(Date.now() + DAY))}"></label>
+      <label class="f">Starts<input id="xTime" type="time" value="09:00"></label></div>
+    <label class="f">Ends (optional)<input id="xEnd" type="time"></label>
+    <label class="f">What's it for (optional)<input id="xCourse" maxlength="60" placeholder="e.g. MAT135, or leave it blank"></label>
+    <button class="btn brass wide" data-action="save-exam">Put it on the board</button>`);
+}
+
+// ===========================================================================
 // Render
 // ===========================================================================
 const ALL_TABS = [
@@ -1608,6 +1686,30 @@ const actions = {
   },
   "clear-bday": () => {
     delete S.birthdays[ME]; saveDoc("birthdays"); render();
+  },
+  "open-exam": () => openExamForm(),
+  "save-exam": async (el) => {
+    const st = fromInputs(val("xDay"), val("xTime")); if (!st) return toast("Pick a day and a start time.");
+    const en = val("xEnd") ? fromInputs(val("xDay"), val("xEnd")) : null;
+    if (en && en <= st) return toast("The end time is before the start.");
+    if (!SHARED) {
+      S.exams.push({ id: uid(), member_id: ME, member_name: nameOf(ME), starts_at: st.toISOString(),
+                     ends_at: en ? en.toISOString() : null, course: val("xCourse") || null });
+      local.set("hb:solo", S); closeModal(); render(); return toast("On the board. Good luck!");
+    }
+    el.disabled = true; lastWrite = Date.now();
+    try {
+      await rpc("add_exam", { p_code: CODE, p_starts: st.toISOString(), p_ends: en ? en.toISOString() : null, p_course: val("xCourse") });
+      closeModal(); toast("On the board. Good luck!");
+    } catch (e) { el.disabled = false; toast(e.message); }
+    await loadExams(); render();
+  },
+  "drop-exam": async (el, id) => {
+    if (!SHARED) { S.exams = S.exams.filter(e => e.id !== id); local.set("hb:solo", S); return render(); }
+    lastWrite = Date.now();
+    try { await rpc("drop_exam", { p_code: CODE, p_id: id }); toast("Taken off the board."); }
+    catch (e) { toast(e.message); }
+    await loadExams(); render();
   },
   "add-period": (el, id) => {
     const rot = ll().rotations.find(r => r.id === id); if (!rot) return;
@@ -2373,7 +2475,7 @@ function buildShell() {
     </div>
     <div class="sheet" id="sheet">
       <div class="wtop"><div class="mark">HB</div><span>${esc(HOUSE_NAME)}</span></div>
-      <div class="wbody"><div><div class="hello" id="hello"></div><h1 id="welcome"></h1><div class="date" id="wdate"></div></div><div class="wtiles" id="wtiles"></div></div>
+      <div class="wbody"><div><div class="hello" id="hello"></div><h1 id="welcome"></h1><div class="date" id="wdate"></div><div class="wexams" id="wexams"></div></div><div class="wtiles" id="wtiles"></div></div>
       <button class="grab" id="grab" aria-label="Open the board"><span class="handle"></span><span>${ic("up")}Drag up to open the board</span></button>
     </div>
     <div class="scrim" id="scrim" data-action="close"></div>
@@ -2484,6 +2586,11 @@ function renderWelcome() {
   document.getElementById("hello").textContent = h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
   document.getElementById("welcome").innerHTML = `Welcome <em>${esc((nameOf(ME) || "").split(" ")[0])}</em>`;
   document.getElementById("wdate").textContent = `${WDL[now.getDay()]}, ${MONTH_NAMES[now.getMonth()]} ${now.getDate()}`;
+  // exams in the next three days, as a friendly heads-up rather than a rule
+  const soon = examsAhead().filter(e => new Date(e.starts_at) - now < 3 * DAY);
+  document.getElementById("wexams").innerHTML = soon.length
+    ? `${ic("bell")}<span>${soon.slice(0, 3).map(e => `<b>${e.member_id === ME ? "You" : esc(examWho(e).split(" ")[0])}</b> ${esc(examWhen(e).replace(" · ", " ").replace(/^(Today|Tomorrow)/, w => w.toLowerCase()))}`).join(" · ")}${soon.length > 3 ? ` · +${soon.length - 3} more` : ""}. ${soon.every(e => e.member_id === ME) ? "You've got this." : "Good luck vibes, please."}</span>`
+    : "";
   const next = meetingsAhead()[0];
   const n = cycleIndex(), a = assignFor(n), done = S.progress[n] || {};
   const myZone = S.config.zones.find(z => (a[z.id] || []).includes(ME));
