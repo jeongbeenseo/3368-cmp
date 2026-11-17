@@ -1605,6 +1605,35 @@ function renderCal() {
 }
 
 // ===========================================================================
+// Push: lets the house reach this device even when the board is closed
+// (installed app on a phone, or any desktop browser). The Edge Function holds
+// the signing key; we only fetch its public half.
+// ===========================================================================
+const PUSH_OK = () => SHARED && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+const unb64u = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), c => c.charCodeAt(0));
+let pushOn = false;
+async function enablePush() {
+  if (!PUSH_OK() || Notification.permission !== "granted" || !CODE) return false;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      let key = local.get("hb:vapid");
+      if (!key) {
+        const res = await fetch(SUPABASE_URL + "/functions/v1/discord", { method:"POST",
+          headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ action:"vapid" }) });
+        key = (await res.json()).key; if (!key) throw new Error("no key");
+        local.set("hb:vapid", key);
+      }
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: unb64u(key) });
+    }
+    const j = sub.toJSON();
+    await rpc("save_push", { p_code: CODE, p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth });
+    pushOn = true; return true;
+  } catch (e) { console.warn("push", e); return false; }
+}
+
+// ===========================================================================
 // Exams: everyone pops theirs on the board, so the house knows when to send
 // good luck. Kept deliberately low-key: no rules, just times.
 // ===========================================================================
@@ -1636,7 +1665,11 @@ function renderExams() {
       (and maybe keep it down the night before).</p>
     ${rows ? `<ul class="periods bdays exams">${rows}</ul>` : `<p class="sub">No exams on the board. Lucky us.</p>`}
     ${canAddExam() ? `<div class="row" style="margin-top:10px">
-      <button class="btn solid" data-action="open-exam">${ic("plus")}My exam's on…</button></div>` : ""}`;
+      <button class="btn solid" data-action="open-exam">${ic("plus")}My exam's on…</button>
+      ${PUSH_OK() && !pushOn && Notification.permission !== "denied"
+        ? `<button class="btn ghost" data-action="exam-alerts">${ic("bell")}Ping me when someone adds one</button>` : ""}</div>
+      ${PUSH_OK() && !pushOn && /iPhone|iPad/.test(navigator.userAgent) && !navigator.standalone
+        ? `<p class="locked">On iPhone, add the board to your Home Screen first (Share → Add to Home Screen), then open it from there.</p>` : ""}` : ""}`;
 }
 
 function openExamForm() {
@@ -1688,6 +1721,12 @@ const actions = {
     delete S.birthdays[ME]; saveDoc("birthdays"); render();
   },
   "open-exam": () => openExamForm(),
+  "exam-alerts": async () => {
+    try { await Notification.requestPermission(); } catch (e) {}
+    if (Notification.permission !== "granted") return toast("Alerts are off for this site. You can turn them on in your browser settings.");
+    toast(await enablePush() ? "Done. This device gets a ping for new exams." : "This browser can't take alerts. Try adding the board to your Home Screen.");
+    render();
+  },
   "save-exam": async (el) => {
     const st = fromInputs(val("xDay"), val("xTime")); if (!st) return toast("Pick a day and a start time.");
     const en = val("xEnd") ? fromInputs(val("xDay"), val("xEnd")) : null;
@@ -2376,7 +2415,7 @@ Object.assign(actions, {
   "del-meet-no": () => { ui.confirmDel = null; render(); },
   "del-meet": async (el, id) => { ui.confirmDel = null; await act("delete_meeting", { p_id: id }, "Meeting deleted. Its suggestions moved to the next one."); },
   notifs: () => openNotices(),
-  "allow-notifs": async () => { try { await Notification.requestPermission(); } catch (e) {} openNotices(); },
+  "allow-notifs": async () => { try { await Notification.requestPermission(); } catch (e) {} enablePush().then(render); openNotices(); },
   bview: (el, id) => { ui.bookView = id; render(); },
   home: () => { renderWelcome(); setLift(false); },
   theme: () => { const d = isDark(); document.documentElement.dataset.theme = d ? "light" : "dark"; local.set("hb:theme", d ? "light" : "dark"); drawTheme(); }
@@ -2711,6 +2750,7 @@ setInterval(checkCycleEnd, 60000);
   render();
   subscribe();
   checkReminder(); checkBookingEnd(); checkCycleEnd();
+  if (await enablePush()) render();        // already allowed alerts: keep this device signed up
 })();
 
 if ("serviceWorker" in navigator && location.protocol === "https:") {

@@ -15,12 +15,22 @@
 //     - tick (every minute, from discord-laundry.sql) -> "3 minutes left" pings in
 //       #laundry-kitchen, to the person who booked only.
 //
+//     - exams -> a good-luck post in Discord (pinging linked housemates) and a push
+//       notification to every device that installed the board and allowed alerts.
+//
 //  3. POST from Discord itself (the app's Interactions Endpoint URL): the
-//     /laundryalert and /dryeralert slash commands, which ping whoever was booked last.
+//     /laundryalert and /dryeralert slash commands, which ping whoever was booked last,
+//     and #verification: /setupverify posts a "Get my role" button; Cindy asks for a
+//     first name and a colour, then creates that role and gives it to them.
+//
+//  4. POST {action:"vapid"} from the board: the public key devices need to sign up
+//     for push notifications. Made on first use and kept in the database.
 //
 // Secrets (Supabase -> Edge Functions -> Secrets), never in the repo:
 //   DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_BOT_TOKEN, DISCORD_GUILD_ID, DISCORD_PUBLIC_KEY,
 //   DISCORD_NOTICEBOARD_WEBHOOK, DISCORD_MEETINGS_WEBHOOK, DISCORD_LAUNDRY_WEBHOOK, WEBHOOK_SECRET, SITE_URL
+// Optional: DISCORD_EXAMS_WEBHOOK (else exams go to #noticeboard),
+//           DISCORD_HOUSE_ROLE (a shared role everyone verified also gets; default "Housemate", skipped if missing)
 // Supabase provides SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY itself.
 
 import nacl from "npm:tweetnacl@1.0.3";
@@ -61,6 +71,7 @@ Deno.serve(async (req) => {
         case "meeting_calls": await syncCall(rec.id); await refreshMeetingBoard(); break;
         case "call_votes": await syncCall(rec.call_id); await refreshMeetingBoard(); break;
         case "tick": await bookingReminders(); break;
+        case "exams": await syncExam(payload); break;
       }
       return json({ ok: true });
     } catch (e) {
@@ -72,6 +83,7 @@ Deno.serve(async (req) => {
   // Account linking
   try {
     const body = await req.json();
+    if (body.action === "vapid") return json({ key: (await vapidKeys()).public });
     if (body.action !== "link") return json({ error: "Unknown action" }, 400);
     return json(await link(String(body.code || ""), String(body.member_code || "")));
   } catch (e) {
@@ -117,7 +129,8 @@ async function link(oauthCode: string, memberCode: string) {
   const wanted = me.role === "landlord" ? ["Landlord"]
     : me.role === "guest" ? ["Guest"]
     : [me.discord_role, me.name, String(me.name).split(" ")[0]].filter(Boolean);
-  const role = wanted.map((w: string) => roles.find(r => r.name.toLowerCase() === w.toLowerCase())).find(Boolean);
+  const role = (me.discord_role_id && roles.find(r => r.id === me.discord_role_id))
+    || wanted.map((w: string) => roles.find(r => r.name.toLowerCase() === w.toLowerCase())).find(Boolean);
 
   // Add them to the server (with the role), or just give the role if they're already in
   const add = await fetch(`${DISCORD}/guilds/${guild}/members/${user.id}`, {
@@ -137,7 +150,8 @@ async function link(oauthCode: string, memberCode: string) {
     name: me.name,
     discord_name: user.global_name || user.username,
     role: role?.name ?? null,
-    warning: role ? null : `There's no Discord role called "${wanted[0]}" yet, so Joey needs to give you one.`,
+    warning: role || me.role === "landlord" || me.role === "guest" ? null
+      : `Last step: in #verification on Discord, press "Get my role" and Cindy will make your role in the colour you pick.`,
   };
 }
 
@@ -430,6 +444,11 @@ async function interaction(req: Request) {
   const reply = (content: string, extra: Record<string, unknown> = {}) =>
     Response.json({ type: 4, data: { content, allowed_mentions: { parse: [] }, ...extra } });
 
+  // #verification: buttons, colour menu and the name form
+  const cid: string = i.data?.custom_id ?? "";
+  if (i.type === 2 && i.data?.name === "setupverify") return setupVerify(i, reply);
+  if ((i.type === 3 || i.type === 5) && cid.startsWith("verify:")) return verifyStep(i, cid, reply);
+
   const alert = ALERTS[i.data?.name];
   if (i.type !== 2 || !alert) return reply("I don't know that command.", { flags: 64 });
 
@@ -441,6 +460,316 @@ async function interaction(req: Request) {
   } catch (e) {
     console.error("laundry alert", e);
     return reply("Couldn't check the bookings just now. Try again in a minute.", { flags: 64 });
+  }
+}
+
+// ===========================================================================
+// 6. Exams -> a good-luck post in Discord and a push to installed boards
+// ===========================================================================
+async function syncExam(payload: any) {
+  const key = `exam:${(payload.record ?? payload.old_record)?.id}`;
+  const hook = env("DISCORD_EXAMS_WEBHOOK") || env("DISCORD_NOTICEBOARD_WEBHOOK");
+
+  if (payload.type === "DELETE") {
+    const state = await getState(key);
+    if (state && hook && state.message_id !== "sending") await fetch(`${hook}/messages/${state.message_id}`, { method: "DELETE" });
+    await db("DELETE", `discord_state?key=eq.${encodeURIComponent(key)}`).catch(() => {});
+    return;
+  }
+  if (payload.type !== "INSERT") return;
+  const e = payload.record;
+  if (!(await claimState(key, "sending", null))) return;          // already handled
+
+  const first = String(e.member_name || "Someone").split(" ")[0];
+  const when = new Date(e.starts_at);
+  const local = new Intl.DateTimeFormat("en-US", { timeZone: "America/Toronto", weekday: "short", month: "short",
+    day: "numeric", hour: "numeric", minute: "2-digit" }).format(when);
+
+  // Phones and laptops first: they don't depend on Discord being set up
+  await pushAll(e.member_id, {
+    title: `📚 ${first} has an exam`,
+    body: `${local}${e.course ? ` · ${e.course}` : ""}. Send good luck vibes!`,
+    tag: key, url: SITE || "/",
+  }).catch(err => console.error("exam push", err));
+
+  if (!hook) return;
+  const r = await fetch(`${hook}?wait=true`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...ping(await pingIds({ except: e.member_id })),
+      embeds: [{
+        color: 0x5B4BB7,
+        title: `📚 ${first} has an exam`,
+        description: [`**${ts(e.starts_at)}** · ${ts(e.starts_at, "R")}`, e.course ? `📖 ${e.course}` : "", "", "Send good luck vibes 🍀"]
+          .filter((l, n) => l || n === 2).join("\n"),
+        url: SITE || undefined,
+        footer: { text: "House Board calendar" },
+      }],
+    }),
+  });
+  if (!r.ok) { console.error("exam post", r.status, await r.text()); return; }
+  const { id } = await r.json();
+  await db("PATCH", `discord_state?key=eq.${encodeURIComponent(key)}`, { message_id: id });
+}
+
+// ===========================================================================
+// 7. Push notifications (Web Push: RFC 8291 encryption, RFC 8292 VAPID)
+//    Written against WebCrypto only, so there's nothing to install.
+// ===========================================================================
+const te = new TextEncoder();
+const b64u = (b: ArrayBuffer | Uint8Array) =>
+  btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const unb64u = (s: string) =>
+  Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), c => c.charCodeAt(0));
+const cat = (...a: Uint8Array[]) => {
+  const o = new Uint8Array(a.reduce((n, x) => n + x.length, 0)); let at = 0;
+  for (const x of a) { o.set(x, at); at += x.length; }
+  return o;
+};
+const hkdf = async (salt: Uint8Array, ikm: Uint8Array, info: Uint8Array, len: number) => new Uint8Array(
+  await crypto.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt, info },
+    await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveBits"]), len * 8));
+
+let vapidCache: { public: string; private: JsonWebKey } | null = null;
+async function vapidKeys() {
+  if (vapidCache) return vapidCache;
+  const rows = await db("GET", "push_keys?select=public_key,private_jwk&id=eq.1");
+  if (rows[0]) return (vapidCache = { public: rows[0].public_key, private: rows[0].private_jwk });
+  const k = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]) as CryptoKeyPair;
+  const made = { public: b64u(await crypto.subtle.exportKey("raw", k.publicKey)), private: await crypto.subtle.exportKey("jwk", k.privateKey) };
+  // two first-ever requests at once: whoever saves first wins, the other reads it back
+  await db("POST", "push_keys?on_conflict=id", { id: 1, public_key: made.public, private_jwk: made.private },
+    { Prefer: "resolution=ignore-duplicates" });
+  vapidCache = null;
+  const saved = await db("GET", "push_keys?select=public_key,private_jwk&id=eq.1");
+  return (vapidCache = { public: saved[0].public_key, private: saved[0].private_jwk });
+}
+
+async function encryptPush(sub: { p256dh: string; auth: string }, payload: string) {
+  const uaPub = unb64u(sub.p256dh), auth = unb64u(sub.auth);
+  const as = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]) as CryptoKeyPair;
+  const asPub = new Uint8Array(await crypto.subtle.exportKey("raw", as.publicKey));
+  const ua = await crypto.subtle.importKey("raw", uaPub, { name: "ECDH", namedCurve: "P-256" }, false, []);
+  const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: ua }, as.privateKey, 256));
+  const ikm = await hkdf(auth, shared, cat(te.encode("WebPush: info\0"), uaPub, asPub), 32);
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const cek = await hkdf(salt, ikm, te.encode("Content-Encoding: aes128gcm\0"), 16);
+  const nonce = await hkdf(salt, ikm, te.encode("Content-Encoding: nonce\0"), 12);
+  const key = await crypto.subtle.importKey("raw", cek, "AES-GCM", false, ["encrypt"]);
+  const body = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, key,
+    cat(te.encode(payload), new Uint8Array([2]))));
+  return cat(salt, new Uint8Array([0, 0, 16, 0, 65]), asPub, body);   // salt, record size 4096, key id
+}
+
+async function vapidAuth(endpoint: string) {
+  const keys = await vapidKeys();
+  const enc = (o: unknown) => b64u(te.encode(JSON.stringify(o)));
+  const unsigned = `${enc({ typ: "JWT", alg: "ES256" })}.${enc({
+    aud: new URL(endpoint).origin, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: SITE || "https://3368-cmp.pages.dev" })}`;
+  const k = await crypto.subtle.importKey("jwk", keys.private, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, k, te.encode(unsigned));
+  return `vapid t=${unsigned}.${b64u(sig)}, k=${keys.public}`;
+}
+
+// Every installed board except the person who caused it. Dead devices are forgotten.
+async function pushAll(except: string | null, msg: { title: string; body: string; tag?: string; url?: string }) {
+  const subs: { endpoint: string; p256dh: string; auth: string }[] = await rpc("push_targets", { p_except: except });
+  const payload = JSON.stringify(msg);
+  await Promise.all(subs.map(async (s) => {
+    try {
+      const r = await fetch(s.endpoint, {
+        method: "POST",
+        headers: { Authorization: await vapidAuth(s.endpoint), "Content-Encoding": "aes128gcm",
+                   "Content-Type": "application/octet-stream", TTL: "86400", Urgency: "normal" },
+        body: await encryptPush(s, payload),
+      });
+      if (r.status === 404 || r.status === 410) await db("DELETE", `push_subs?endpoint=eq.${encodeURIComponent(s.endpoint)}`);
+      else if (!r.ok) console.error("push", r.status, await r.text());
+    } catch (e) { console.error("push", e); }
+  }));
+}
+
+// ===========================================================================
+// 8. #verification: everyone picks a name and a colour, Cindy makes the role
+// ===========================================================================
+const PALETTE: [string, string, string][] = [
+  ["Rose", "#FF6FAE", "🌸"], ["Strawberry", "#E5484D", "🍓"], ["Peach", "#FF9E7A", "🍑"], ["Orange", "#F76B15", "🍊"],
+  ["Sunflower", "#FFB224", "🌻"], ["Lemon", "#FFE629", "🍋"], ["Lime", "#99D52A", "🥝"], ["Leaf", "#30A46C", "🌿"],
+  ["Mint", "#3DD9B3", "🍃"], ["Teal", "#12A594", "🐢"], ["Sky", "#68DDFD", "💧"], ["Blue", "#0090FF", "🦋"],
+  ["Indigo", "#3E63DD", "🌌"], ["Grape", "#8E4EC6", "🍇"], ["Lavender", "#B4A7F5", "💜"], ["Flamingo", "#F76BDE", "🦩"],
+  ["Teddy", "#A07553", "🧸"], ["Sand", "#D4B48C", "🏖️"], ["Elephant", "#8B8D98", "🐘"], ["Cloud", "#F5F5F5", "🤍"],
+];
+const RESERVED = ["everyone", "here", "joey", "landlord", "guest", "housemate", "cindy", "admin", "mod", "moderator", "bot"];
+const HOUSE_ROLE = () => env("DISCORD_HOUSE_ROLE") || "Housemate";
+
+function parseHex(v: string): number | null {
+  let h = v.trim().replace(/^#/, "");
+  if (/^[0-9a-f]{3}$/i.test(h)) h = h.split("").map(c => c + c).join("");
+  if (!/^[0-9a-f]{6}$/i.test(h)) return null;
+  return parseInt(h, 16) || 0x010101;            // 0 means "no colour" to Discord
+}
+const cleanName = (v: string) => v.trim().replace(/\s+/g, " ");
+function nameProblem(n: string) {
+  if (!n) return "Type your first name.";
+  if (n.length > 32) return "That's a bit long for a role. 32 characters max.";
+  if (!/^[\p{L}\p{M}][\p{L}\p{M}0-9 '.\-]*$/u.test(n)) return "Just letters please (spaces, hyphens and apostrophes are fine).";
+  if (RESERVED.includes(n.toLowerCase())) return `"${n}" is taken by a house role. Try your own name.`;
+  return null;
+}
+const isAdmin = (i: any) => { try { return (BigInt(i.member?.permissions ?? "0") & 0x28n) !== 0n; } catch { return false; } };  // Administrator or Manage Server
+
+// Finish slow work after answering Discord (it only waits 3 seconds)
+// deno-lint-ignore no-explicit-any
+const later = (p: Promise<unknown>) => { const rt = (globalThis as any).EdgeRuntime; rt?.waitUntil ? rt.waitUntil(p) : p.catch(console.error); };
+const editReply = (i: any, body: unknown) =>
+  fetch(`${DISCORD}/webhooks/${i.application_id}/${i.token}/messages/@original`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+async function setupVerify(i: any, reply: (c: string, x?: Record<string, unknown>) => Response) {
+  if (!isAdmin(i)) return reply("Only Joey can do that.", { flags: 64 });
+  try {
+    await bot("POST", `/channels/${i.channel_id}/messages`, {
+      embeds: [{
+        color: 0x5865F2,
+        title: "👋 Welcome to the house!",
+        description: [
+          "**1.** Link your House Board account: open the board → *Housemates* → **Link Discord**.",
+          "**2.** Press **Get my role** below. Tell Cindy your first name and pick a colour, and she'll make your role.",
+          "",
+          "Want a different colour later? Press the button again any time.",
+        ].join("\n"),
+        url: SITE || undefined,
+      }],
+      components: [{ type: 1, components: [
+        { type: 2, style: 1, label: "Get my role", emoji: { name: "🎨" }, custom_id: "verify:start" },
+        ...(SITE ? [{ type: 2, style: 5, label: "Open House Board", url: SITE }] : []),
+      ] }],
+    });
+    return reply("Posted. Pin it if you like.", { flags: 64 });
+  } catch (e) {
+    console.error("setupverify", e);
+    return reply("I couldn't post here. Check I can send messages in this channel.", { flags: 64 });
+  }
+}
+
+async function verifyStep(i: any, cid: string, reply: (c: string, x?: Record<string, unknown>) => Response) {
+  const user = i.member?.user?.id;
+  if (!user) return reply("Use this in the house server.", { flags: 64 });
+  const [, step, ...rest] = cid.split(":");
+  const carried = rest.join(":");                 // the name, carried through the colour menu
+  const field = (id: string) => (i.data?.components ?? []).flatMap((r: any) => r.components ?? [])
+    .find((c: any) => c.custom_id === id)?.value ?? "";
+
+  // 1. The button: are they linked? then ask their name
+  if (step === "start") {
+    let me: any;
+    try { me = (await rpc("discord_member", { p_discord_id: user }))[0]; }
+    catch (e) { console.error("verify lookup", e); return reply("I can't reach House Board right now. Try again in a minute.", { flags: 64 }); }
+    if (!me) return reply(`I don't know you yet! Link your House Board account first: open the board → *Housemates* → **Link Discord**${SITE ? ` (${SITE})` : ""}. Then come back and press the button again.`, { flags: 64 });
+    if (me.role === "landlord" || me.role === "guest") return reply("You're all set already. Roles here are for the people living in the house.", { flags: 64 });
+    const guess = me.discord_role || String(me.name).split(" ")[0];
+    return Response.json({ type: 9, data: {
+      custom_id: "verify:name", title: "Hi! I'm Cindy 👋",
+      components: [
+        { type: 1, components: [{ type: 4, custom_id: "name", label: "What's your first name?", style: 1,
+          min_length: 1, max_length: 32, required: true, value: guess.slice(0, 32) }] },
+        { type: 1, components: [{ type: 4, custom_id: "hex", label: "Colour hex code (optional)", style: 1,
+          min_length: 0, max_length: 7, required: false, placeholder: "#FF6FAE, or leave blank to see the palette" }] },
+      ] } });
+  }
+
+  // 2. Name (and maybe a hex) typed in
+  if (step === "name") {
+    const name = cleanName(field("name")), hex = field("hex").trim();
+    const bad = nameProblem(name);
+    if (bad) return reply(bad + " Press **Get my role** to try again.", { flags: 64 });
+    if (hex) {
+      const color = parseHex(hex);
+      if (color === null) return reply(`"${hex}" isn't a hex colour. It looks like **#FF6FAE**. Press **Get my role** to try again.`, { flags: 64 });
+      later(makeRole(i, name, color).then(m => editReply(i, m)));
+      return Response.json({ type: 5, data: { flags: 64 } });       // "Cindy is thinking…"
+    }
+    return reply("", { flags: 64, ...palette(name) });
+  }
+
+  // 3a. Picked from the palette
+  if (step === "pick") {
+    const color = parseHex(i.data?.values?.[0] ?? "");
+    if (color === null || nameProblem(carried)) return reply("Something went wrong. Press **Get my role** again.", { flags: 64 });
+    later(makeRole(i, carried, color).then(m => editReply(i, m)));
+    return Response.json({ type: 6 });                                 // update the palette message when done
+  }
+
+  // 3b. Wants to type a hex instead
+  if (step === "hex") {
+    return Response.json({ type: 9, data: {
+      custom_id: `verify:hexed:${carried}`, title: "Your colour",
+      components: [{ type: 1, components: [{ type: 4, custom_id: "hex", label: "Hex code", style: 1,
+        min_length: 3, max_length: 7, required: true, placeholder: "#FF6FAE" }] }] } });
+  }
+  if (step === "hexed") {
+    const color = parseHex(field("hex"));
+    if (color === null) return Response.json({ type: 7, data: { content: `"${field("hex")}" isn't a hex colour. It looks like **#FF6FAE**. Pick one below or try again.`, ...palette(carried) } });
+    later(makeRole(i, carried, color).then(m => editReply(i, m)));
+    return Response.json({ type: 6 });
+  }
+
+  return reply("That button is out of date. Press **Get my role** again.", { flags: 64 });
+}
+
+function palette(name: string) {
+  return {
+    content: `Nice to meet you, **${name}**! Pick a colour for your role:`,
+    embeds: SITE ? [{ color: 0x5865F2, image: { url: `${SITE}/palette.png` } }] : [],
+    allowed_mentions: { parse: [] },
+    components: [
+      { type: 1, components: [{ type: 3, custom_id: `verify:pick:${name}`, placeholder: "Choose a colour",
+        options: PALETTE.map(([label, hex, emoji]) => ({ label, value: hex, description: hex, emoji: { name: emoji } })) }] },
+      { type: 1, components: [{ type: 2, style: 2, label: "Type a hex code instead", emoji: { name: "🎨" }, custom_id: `verify:hex:${name}` }] },
+    ],
+  };
+}
+
+// Create (or recolour) their role, give it to them, remember it.
+async function makeRole(i: any, name: string, color: number) {
+  const fail = (content: string) => ({ content, embeds: [], components: [], allowed_mentions: { parse: [] } });
+  const user = i.member.user.id, guild = i.guild_id || env("DISCORD_GUILD_ID");
+  const hex = "#" + color.toString(16).padStart(6, "0").toUpperCase();
+  try {
+    const me = (await rpc("discord_member", { p_discord_id: user }))[0];
+    if (!me) return fail("Link your House Board account first, then press **Get my role** again.");
+
+    const roles: { id: string; name: string; managed: boolean }[] = await bot("GET", `/guilds/${guild}/roles`);
+    let mine = roles.find(r => r.id === me.discord_role_id);
+    const clash = roles.find(r => r.name.toLowerCase() === name.toLowerCase() && r.id !== mine?.id);
+    if (clash) {
+      // a role with this name that they already have (e.g. made by hand before) becomes theirs
+      const theirs = !clash.managed && clash.id !== guild && (i.member.roles ?? []).includes(clash.id)
+        && !(await rpc("discord_role_taken", { p_role_id: clash.id, p_discord_id: user }));
+      if (!theirs) return fail(`There's already a role called **${clash.name}**. Try adding an initial (like **${name} ${String(me.name).split(" ").at(-1)?.[0] ?? "B"}**) and press **Get my role** again.`);
+      mine = clash;
+    }
+
+    const role = mine
+      ? await bot("PATCH", `/guilds/${guild}/roles/${mine.id}`, { name, color })
+      : await bot("POST", `/guilds/${guild}/roles`, { name, color, permissions: "0", mentionable: true, hoist: false });
+    await rpc("discord_set_role", { p_discord_id: user, p_role_name: name, p_role_id: role.id });
+    await bot("PUT", `/guilds/${guild}/members/${user}/roles/${role.id}`);
+    const house = roles.find(r => r.name.toLowerCase() === HOUSE_ROLE().toLowerCase() && !r.managed);
+    if (house && !(i.member.roles ?? []).includes(house.id)) {
+      await bot("PUT", `/guilds/${guild}/members/${user}/roles/${house.id}`).catch(e => console.error("house role", e));
+    }
+
+    return { content: "", components: [], allowed_mentions: { parse: [] }, embeds: [{
+      color, title: mine ? `🎨 Updated! You're now ${name} in ${hex}` : `🎉 You're in, ${name}!`,
+      description: `${mine ? "Your role has the new colour." : `I made your role <@&${role.id}> in **${hex}** and gave it to you.`}\nWant a different colour later? Press **Get my role** again.`,
+    }] };
+  } catch (e) {
+    console.error("make role", e);
+    const s = String(e);
+    if (s.includes("-> 403")) return fail("I'm not allowed to manage roles. Joey: give Cindy the **Manage Roles** permission and drag her role above everyone's name roles.");
+    if (s.includes("belongs to someone else")) return fail("That role belongs to another housemate. Pick a different name.");
+    return fail("Something went wrong making your role. Try again in a minute, or tell Joey.");
   }
 }
 

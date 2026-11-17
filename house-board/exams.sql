@@ -2,7 +2,8 @@
 -- House Board update: exam times
 -- ---------------------------------------------------------------------------
 -- Paste the whole file into Supabase -> SQL Editor -> Run.
--- Run it AFTER basement.sql. ADD-ONLY and safe to run more than once.
+-- Run it AFTER basement.sql and discord-meetings.sql. ADD-ONLY and safe to
+-- run more than once.
 --
 -- Anyone who lives here (housemates, the manager, the basement) can put their
 -- own exams on the board and take them off again. Nobody can add or remove
@@ -72,6 +73,77 @@ grant execute on function add_exam(text, timestamptz, timestamptz, text), drop_e
 do $$
 begin
   begin alter publication supabase_realtime add table exams; exception when duplicate_object or undefined_object then null; end;
+end $$;
+
+-- ===========================================================================
+-- Notifications for new exams
+--   * Cindy posts them in Discord (pinging linked housemates)
+--   * phones / laptops that installed the board get a push notification
+-- Both are sent by the `discord` Edge Function, so redeploy it after this.
+-- ===========================================================================
+
+-- Devices that said yes to alerts. Nobody can read this through the API;
+-- the board writes to it only through save_push / drop_push below.
+create table if not exists push_subs (
+  endpoint   text primary key,
+  member_id  uuid not null references members(id) on delete cascade,
+  p256dh     text not null,
+  auth       text not null,
+  created_at timestamptz not null default now()
+);
+alter table push_subs enable row level security;
+grant select, insert, update, delete on push_subs to service_role;
+
+-- The key pair that signs push messages. The Edge Function makes it the first
+-- time it's needed; the private half never leaves the database.
+create table if not exists push_keys (
+  id         int primary key default 1 check (id = 1),
+  public_key text not null,
+  private_jwk jsonb not null
+);
+alter table push_keys enable row level security;
+grant select, insert, update on push_keys to service_role;
+
+create or replace function save_push(p_code text, p_endpoint text, p_p256dh text, p_auth text)
+returns void language plpgsql security definer set search_path = public as $$
+declare me members;
+begin
+  me := writer(p_code);
+  if me.id is null then raise exception 'Please sign in again'; end if;
+  if p_endpoint !~ '^https://' or length(p_endpoint) > 1000 then raise exception 'That device can''t take alerts'; end if;
+  insert into push_subs (endpoint, member_id, p256dh, auth) values (p_endpoint, me.id, p_p256dh, p_auth)
+  on conflict (endpoint) do update set member_id = excluded.member_id, p256dh = excluded.p256dh, auth = excluded.auth;
+end; $$;
+
+create or replace function drop_push(p_code text, p_endpoint text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  delete from push_subs where endpoint = p_endpoint and member_id = (writer(p_code)).id;
+end; $$;
+
+grant execute on function save_push(text, text, text, text), drop_push(text, text) to anon;
+
+-- Devices to notify: everyone living here except whoever caused it. Server only.
+create or replace function push_targets(p_except uuid)
+returns table (endpoint text, p256dh text, auth text)
+language plpgsql security definer set search_path = public as $$
+begin
+  if not is_server() then raise exception 'Not allowed'; end if;
+  return query select s.endpoint, s.p256dh, s.auth from push_subs s join members m on m.id = s.member_id
+   where m.status = 'active' and m.role not in ('guest', 'landlord') and m.id is distinct from p_except;
+end; $$;
+revoke execute on function push_targets(uuid) from public, anon, authenticated;
+grant  execute on function push_targets(uuid) to service_role;
+
+-- Tell the Edge Function when an exam is added or removed (discord_notify()
+-- comes from discord-meetings.sql; skipped quietly if that isn't set up).
+do $$
+begin
+  if to_regprocedure('discord_notify()') is not null then
+    drop trigger if exists discord_exams on exams;
+    create trigger discord_exams after insert or delete on exams
+      for each row execute function discord_notify();
+  end if;
 end $$;
 
 -- check it over:

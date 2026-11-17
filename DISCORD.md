@@ -1,6 +1,6 @@
 # House Board ↔ Discord
 
-Four things, all handled by one Supabase Edge Function (`supabase/functions/discord`):
+Everything here is handled by one Supabase Edge Function (`supabase/functions/discord`):
 
 1. **Link Discord**: on House Board, *Housemates → Link Discord*. You sign in with your
    House Board code, Discord asks you to authorize, and you're added to the house server
@@ -19,6 +19,16 @@ Four things, all handled by one Supabase Edge Function (`supabase/functions/disc
 5. **`/laundryalert` and `/dryeralert`**: anyone can type these in Discord to have Cindy
    ping whoever was booked on the laundry last (the latest booking that has started,
    never the person who typed it) to come get their washer or dryer load.
+6. **#verification: Cindy makes your role.** After linking, press **Get my role** on
+   Cindy's message in #verification. She asks your first name (filled in for you) and,
+   optionally, a hex colour. Leave the colour blank and she shows a palette of 20 to pick
+   from, or lets you type a hex. Then she creates a role with that name and colour and
+   gives it to you (plus `Housemate`, if that role exists). Press it again any time to
+   change your colour or name. Only linked housemates can use it.
+7. **Exams**: when someone adds an exam on the board's Calendar, Cindy posts a good-luck
+   card (in #exams if you give it a webhook, otherwise #noticeboard) and pings every
+   linked housemate except them. Removing the exam removes the post. Every device that
+   installed the board and turned on alerts also gets a push notification.
 
 Nothing secret is in this repo. Secrets live in Supabase → Edge Functions → Secrets.
 
@@ -69,6 +79,22 @@ The two slash commands are registered on the server once, with Cindy's token:
 `{"name":"laundryalert","description":"…","type":1}` (and the same for `dryeralert`).
 Posting one again with the same name just updates it.
 
+8. **Exams and roles** (newer; do these even if everything above is already set up):
+   1. **SQL Editor:** run `house-board/discord-roles.sql`, then `house-board/exams.sql`.
+   2. **Edge Functions → `discord`:** paste the new `supabase/functions/discord/index.ts` → Deploy.
+   3. Optional secret `DISCORD_EXAMS_WEBHOOK`: a webhook for an #exams channel. Without
+      it, exam posts go to #noticeboard.
+   4. Register `/setupverify` (only people who can manage the server see it), the same way
+      as the laundry commands: `POST /applications/1560068767289974934/guilds/<server ID>/commands`
+      with `{"name":"setupverify","description":"Post Cindy's Get my role button here","type":1,"default_member_permissions":"32"}`.
+   5. In Discord: **Server Settings → Roles → Cindy**: turn on **Manage Roles**, and drag
+      Cindy's role **above** everyone's name roles (Discord only lets her edit roles below her own).
+   6. Go to #verification and type `/setupverify`. Cindy posts the welcome message with the
+      button. Pin it.
+
+   Push notifications need no keys from you: Cindy makes the signing key the first time a
+   device signs up and keeps it in the `push_keys` table.
+
 ### 3. Discord server
 
 In the discord-setup folder, `npm start`. That adds #✅・verify and locks everything
@@ -77,16 +103,24 @@ else until people link.
 ## Who gets which role
 
 - Landlord accounts → `Landlord`, guest accounts → `Guest`
-- Everyone else → the role named in `members.discord_role`, or else their House Board
-  name, or else their first name (`Derek Smith` → `Derek`)
+- Everyone else picks their own in #verification (name + colour). Cindy remembers it in
+  `members.discord_role_id`, so relinking gives the same role back.
+- Before they've picked one, linking still looks for a role named `members.discord_role`,
+  their House Board name, or their first name (`Derek Smith` → `Derek`). Someone who
+  already has a hand-made role with the name they type keeps it, just recoloured.
 - The manager gets `Joey` (set by `discord.sql`)
+- If a role called `Housemate` exists, everyone who picks a role also gets it. Give
+  `Housemate` access to the house channels and new people are let in automatically.
 
-To change someone's: `update members set discord_role = 'Milo' where name = '...';`
+To change someone's by hand: `update members set discord_role = 'Milo' where name = '...';`
 
 ## If something goes wrong
 
 - **"Discord didn't accept that"**: the redirect in step 1 doesn't exactly match, or the client secret is wrong.
 - **"Not allowed" / database errors**: in Supabase → Settings → API Keys, copy the **secret** key and add it as an
   Edge Function secret named `SB_SECRET_KEY`.
+- **"I'm not allowed to manage roles"** in #verification: step 8.5 above.
+- **No push notifications**: on iPhone the board has to be opened from the Home Screen
+  (Share → Add to Home Screen) before "Ping me when someone adds one" appears.
 - **Nothing shows up in Discord**: Edge Functions → `discord` → Logs. A `bad secret` error means the value in `discord_config` doesn't match the `WEBHOOK_SECRET` secret.
 - Posts from before this was set up appear in Discord the next time they get a reply or change.

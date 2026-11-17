@@ -14,7 +14,9 @@ structural.
 | `config.js` | **The only file you edit.** Your two Supabase values. |
 | `schema.sql` | Run once in Supabase. Contains no codes, safe to commit. |
 | `basement.sql` | Adds basement accounts and Joint suggestions. Run after `meetings.sql`, `polls.sql` and `keep-records.sql`. |
-| `exams.sql` | Lets everyone put their exam times on the Calendar. Run after `basement.sql`. |
+| `exams.sql` | Exam times on the Calendar, plus push notifications for them. Run after `basement.sql` and `discord-meetings.sql`. |
+| `discord-roles.sql` | Lets Cindy make everyone's Discord role in #verification. See `../DISCORD.md`. |
+| `palette.png` | The colour palette Cindy shows in #verification. |
 | `sw.js`, `manifest.json`, `icon*.png` | Make it installable as an app. |
 
 ---
