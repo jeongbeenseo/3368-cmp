@@ -70,6 +70,7 @@ Deno.serve(async (req) => {
         case "meeting_calls": await syncCall(rec.id); await refreshMeetingBoard(); break;
         case "call_votes": await syncCall(rec.call_id); await refreshMeetingBoard(); break;
         case "tick": await bookingReminders(); break;
+        case "register_commands": return json(await registerCommands());
         case "exams": await syncExam(payload); break;
       }
       return json({ ok: true });
@@ -625,6 +626,26 @@ const later = (p: Promise<unknown>) => { const rt = (globalThis as any).EdgeRunt
 const editReply = (i: any, body: unknown) =>
   fetch(`${DISCORD}/webhooks/${i.application_id}/${i.token}/messages/@original`, {
     method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+// Cindy's slash commands, registered with her own token so nobody has to
+// handle it. Triggered from the SQL Editor (see DISCORD.md). Posting a
+// command that already exists just updates it.
+async function registerCommands() {
+  const app = env("DISCORD_CLIENT_ID"), guild = env("DISCORD_GUILD_ID");
+  const cmds = [
+    { name: "laundryalert", description: "Ping whoever was booked on the laundry last", type: 1 },
+    { name: "dryeralert", description: "Ping whoever was booked on the dryer last", type: 1 },
+    { name: "setupverify", description: "Post Cindy's Get my role button here", type: 1, default_member_permissions: "32" },
+  ];
+  const have = new Set((await bot("GET", `/applications/${app}/guilds/${guild}/commands`)).map((x: any) => x.name));
+  const done: string[] = [];
+  for (const c of cmds) {
+    if (c.name !== "setupverify" && have.has(c.name)) { done.push(`${c.name} (already there)`); continue; }   // keep yours as they are
+    await bot("POST", `/applications/${app}/guilds/${guild}/commands`, c);
+    done.push(c.name);
+  }
+  return { ok: true, registered: done };
+}
 
 async function setupVerify(i: any, reply: (c: string, x?: Record<string, unknown>) => Response) {
   if (!isAdmin(i)) return reply("Only Joey can do that.", { flags: 64 });
