@@ -437,6 +437,12 @@
   .sheet h1{font-family:var(--display);font-weight:500;font-size:64px;line-height:1;margin:8px 0 0;letter-spacing:-.02em;text-wrap:balance}
   .sheet h1 em{font-style:italic;color:var(--gilt)}
   .sheet .date{opacity:.7;margin-top:10px;font-size:15px}
+  .sheet .wexams{margin-top:14px;font-size:14px;display:flex;align-items:flex-start;gap:8px;line-height:1.45}
+  .sheet .wexams:empty{display:none}
+  .sheet .wexams .ico{flex:none;margin-top:2px;color:var(--gilt)}
+  .sheet .wexams span{opacity:.85}
+  .exams .range{width:230px}
+  @media (max-width:560px){ .exams li{flex-wrap:wrap;row-gap:2px} .exams .range{width:auto;flex-basis:calc(100% - 20px)} }
   .wtiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
   .wt{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:14px 16px;text-align:left;
       cursor:pointer;color:inherit;display:flex;flex-direction:column;gap:4px;min-width:0;font:inherit}
@@ -585,10 +591,11 @@ const S = {
   notes: [],
   bookings: [],
   birthdays: {},          // { memberId: "MM-DD" }
+  exams: [],              // rows from the exams table
   roster: [],             // active members: {id, name, unit, is_manager}
   meetings: [], calls: [], votes: [], sugs: [], notices: []
 };
-let MEET_READY = false, POLLS_READY = false;
+let MEET_READY = false, POLLS_READY = false, EXAMS_READY = false;
 
 let CODE = null, ME = null, ROLE = "member", IS_MANAGER = false, IS_GUEST = false, IS_BASEMENT = false,
     MEMBERS = null, UNITS = [];
@@ -634,6 +641,8 @@ async function loadAll() {
     if (!S.roster.length) S.roster = [{ id:"me", name:"Joseph", unit:"Master A", is_manager:true }];
     ME = S.roster[0].id; ROLE = "manager"; IS_MANAGER = true; IS_GUEST = false;
     if (!ui.res) ui.res = S.config.resources[0]?.id || null;
+    if (!Array.isArray(S.exams)) S.exams = [];
+    EXAMS_READY = true;
     local.set("hb:solo", S);
     return;
   }
@@ -667,6 +676,14 @@ async function loadAll() {
 
   if (!ui.res) ui.res = S.config.resources[0]?.id || null;
   try { await loadMeetings(); } catch (e) { MEET_READY = false; }
+  await loadExams();
+}
+
+async function loadExams() {
+  if (!SHARED) { EXAMS_READY = true; return; }
+  const { data, error } = await SB.from("exams").select("*").order("starts_at");
+  EXAMS_READY = !error;            // false until exams.sql has been run
+  S.exams = data || [];
 }
 
 async function loadMembers() {
@@ -717,6 +734,7 @@ function subscribe() {
     .on("postgres_changes", { event:"*", schema:"public", table:"call_votes" }, bump)
     .on("postgres_changes", { event:"*", schema:"public", table:"suggestions" }, bump)
     .on("postgres_changes", { event:"*", schema:"public", table:"suggestion_votes" }, bump)
+    .on("postgres_changes", { event:"*", schema:"public", table:"exams" }, bump)
     .on("postgres_changes", { event:"INSERT", schema:"public", table:"notices" }, p => {
       const n = p.new || {};
       if (ROLE === "landlord" && !n.landlord) return;
@@ -1126,7 +1144,7 @@ const KINDS = {                       // the kinds you can pick when adding a da
 // Grocery runs aren't stored here — they're read straight off the Grocery tab,
 // so posting a run puts it on the calendar and cancelling one takes it off.
 const KIND_COLOR = { off:"var(--c4)", utm:"var(--c5)", house:"var(--c1)",
-                     shop:"var(--c0)", bday:"var(--c3)", meet:"var(--brass)" };
+                     shop:"var(--c0)", bday:"var(--c3)", meet:"var(--brass)", season:"var(--c2)" };
 
 function dayItems(iso) {
   const out = ll().dates.filter(d => d.to ? (iso >= d.date && iso <= d.to) : d.date === iso)
@@ -1141,6 +1159,11 @@ function dayItems(iso) {
     const st = new Date(m.starts_at);
     if (localIso(st) === iso) out.unshift({ id: m.id, kind: "meet", removable: false,
       label: `Group meeting · ${span(st, m.ends_at ? new Date(m.ends_at) : null)}${m.landlord ? " · landlord" : ""}` });
+  });
+  (S.exams || []).forEach(e => {
+    const [a, b] = seasonDays(e);
+    if (iso >= a && iso <= b) out.push({ id: "x" + e.id, kind: "season", removable: false,
+      label: `${examWho(e)}'s exam season`, span: `${fmtFull(a)} – ${fmtFull(b)}` });
   });
   S.trips.filter(t => t.date === iso).forEach(t => out.push({
     id: t.id, kind: "shop", removable: false,
@@ -1354,6 +1377,12 @@ function searchCal(q) {
     if (`${p.name} birthday`.toLowerCase().includes(t))
       out.push({ kind:"bday", label:`${p.name}'s birthday`, md, id:"b" + id });
   });
+  (S.exams || []).forEach(e => {
+    if (`${examWho(e)} exam season ${e.course || ""}`.toLowerCase().includes(t)) {
+      const [a, b] = seasonDays(e);
+      out.push({ kind:"season", label:`${examWho(e)}'s exam season${e.course ? " · " + e.course : ""}`, from:a, to:b, id:"x" + e.id });
+    }
+  });
   (S.meetings || []).forEach(m => {
     if ("group meeting".includes(t) || (m.agenda || "").toLowerCase().includes(t)) {
       const d = localIso(new Date(m.starts_at));
@@ -1436,6 +1465,7 @@ function renderCal() {
             : ""}</span>
         ${e.kind === "shop" ? `<span class="src">Grocery Runs</span>` : ""}
         ${e.kind === "bday" ? `<span class="src">Birthday</span>` : ""}
+        ${e.kind === "season" ? `<span class="src">Exam season</span>` : ""}
         ${e.kind === "meet" ? `<span class="src">Group Meeting</span>` : ""}
         ${IS_MANAGER && e.removable
           ? `<button class="btn ghost tiny" data-action="del-date" data-id="${e.id}">Remove</button>` : ""}
@@ -1523,6 +1553,8 @@ function renderCal() {
 
     ${rotLists}
 
+    ${renderExams()}
+
     <h3 class="sub-h">Birthdays</h3>
     ${(() => {
       const rows = people()
@@ -1573,6 +1605,99 @@ function renderCal() {
 }
 
 // ===========================================================================
+// Push: lets the house reach this device even when the board is closed
+// (installed app on a phone, or any desktop browser). The Edge Function holds
+// the signing key; we only fetch its public half.
+// ===========================================================================
+const PUSH_OK = () => SHARED && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+const unb64u = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), c => c.charCodeAt(0));
+let pushOn = false;
+async function enablePush() {
+  if (!PUSH_OK() || Notification.permission !== "granted" || !CODE) return false;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      let key = local.get("hb:vapid");
+      if (!key) {
+        const res = await fetch(SUPABASE_URL + "/functions/v1/discord", { method:"POST",
+          headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ action:"vapid" }) });
+        key = (await res.json()).key; if (!key) throw new Error("no key");
+        local.set("hb:vapid", key);
+      }
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: unb64u(key) });
+    }
+    const j = sub.toJSON();
+    await rpc("save_push", { p_code: CODE, p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth });
+    pushOn = true; return true;
+  } catch (e) { console.warn("push", e); return false; }
+}
+
+// ===========================================================================
+// Exam seasons: everyone pops their stretch of exam days on the board, so the
+// house knows when to send good luck and be extra quiet. Kept low-key on purpose.
+// Each row runs from the start of its first day to the end of its last day.
+// ===========================================================================
+const examWho = e => (person(e.member_id) || {}).name || e.member_name || "A housemate";
+const examEnd = e => new Date(e.ends_at);
+const examsAhead = () => (S.exams || []).filter(e => examEnd(e) > new Date())
+  .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
+const canAddExam = () => !IS_GUEST && ROLE !== "landlord";
+// first and last day, as local YYYY-MM-DD (ends_at is the end of the last day)
+const seasonDays = e => [localIso(new Date(e.starts_at)), localIso(new Date(new Date(e.ends_at).getTime() - 1))];
+const seasonLen = e => Math.round((new Date(e.ends_at) - new Date(e.starts_at)) / DAY);
+const mdShort = iso => { const [, m, d] = iso.split("-").map(Number); return `${MON[m - 1]} ${d}`; };
+const examWhen = e => { const [a, b] = seasonDays(e), n = seasonLen(e); return `${mdShort(a)} – ${mdShort(b)} (${n} day${n === 1 ? "" : "s"})`; };
+
+function renderExams() {
+  if (!EXAMS_READY) return IS_MANAGER ? `
+    <h3 class="sub-h">Exam seasons</h3>
+    <p class="locked">Run <b>exams.sql</b> in Supabase to switch this on.</p>` : "";
+  const now = new Date();
+  const rows = examsAhead().map(e => {
+    const st = new Date(e.starts_at), live = st <= now;
+    return `<li class="${e.member_id === ME ? "on" : ""}"><em style="background:${KIND_COLOR.season}"></em>
+      <span class="range">${esc(examWhen(e))}</span>
+      <span style="flex:1">${esc(examWho(e))}${e.course ? `<span class="sub" style="font-size:12.5px"> · ${esc(e.course)}</span>` : ""}</span>
+      ${live ? `<span class="nowtag">now</span>` : ""}
+      ${e.member_id === ME || IS_MANAGER
+        ? `<button class="btn ghost tiny" data-action="drop-exam" data-id="${e.id}">Remove</button>` : ""}
+    </li>`;
+  }).join("");
+  return `
+    <h3 class="sub-h">Exam seasons</h3>
+    <p class="sub" style="margin:0 0 6px;max-width:600px">Exam season coming up? Pop your dates on here so the house knows when to send
+      good luck vibes and be extra quiet during quiet hours, 12 midnight to 6 AM.</p>
+    ${rows ? `<ul class="periods bdays exams">${rows}</ul>` : `<p class="sub">Nobody's in exam season. Lucky us.</p>`}
+    ${canAddExam() ? `<div class="row" style="margin-top:10px">
+      <button class="btn solid" data-action="open-exam">${ic("plus")}My exam season is…</button>
+      ${PUSH_OK() && !pushOn && Notification.permission !== "denied"
+        ? `<button class="btn ghost" data-action="exam-alerts">${ic("bell")}Ping me when someone starts one</button>` : ""}</div>
+      ${PUSH_OK() && !pushOn && /iPhone|iPad/.test(navigator.userAgent) && !navigator.standalone
+        ? `<p class="locked">On iPhone, add the board to your Home Screen first (Share → Add to Home Screen), then open it from there.</p>` : ""}` : ""}`;
+}
+
+function openExamForm() {
+  const today = localIso(new Date());
+  openModal("Exam season", `
+    <h2>When's your exam season?</h2>
+    <p class="sub">The stretch of days you're studying and writing. The house keeps it extra quiet the whole time.</p>
+    <div class="two"><label class="f">From<input id="xFrom" type="date" min="${today}" value="${today}" data-input="exam-days"></label>
+      <label class="f">To<input id="xTo" type="date" min="${today}" value="${localIso(new Date(Date.now() + 14 * DAY))}" data-input="exam-days"></label></div>
+    <p class="sub" id="xDays" style="margin:0"></p>
+    <label class="f">Note (optional)<input id="xCourse" maxlength="60" placeholder="e.g. Finals, or MAT135"></label>
+    <button class="btn brass wide" data-action="save-exam">Put it on the board</button>
+    <p class="sub" style="margin:0;font-size:12.5px">It shows on the calendar for everyone, and you can take it off whenever.</p>`);
+  drawExamDays();
+}
+function drawExamDays() {
+  const z = document.getElementById("xDays"); if (!z) return;
+  const a = val("xFrom"), b = val("xTo");
+  const n = a && b ? Math.round((parseISO(b) - parseISO(a)) / DAY) + 1 : 0;
+  z.textContent = n > 0 ? `${n} day${n === 1 ? "" : "s"} of exam season.` : "";
+}
+
+// ===========================================================================
 // Render
 // ===========================================================================
 const ALL_TABS = [
@@ -1608,6 +1733,38 @@ const actions = {
   },
   "clear-bday": () => {
     delete S.birthdays[ME]; saveDoc("birthdays"); render();
+  },
+  "open-exam": () => openExamForm(),
+  "exam-alerts": async () => {
+    try { await Notification.requestPermission(); } catch (e) {}
+    if (Notification.permission !== "granted") return toast("Alerts are off for this site. You can turn them on in your browser settings.");
+    toast(await enablePush() ? "Done. This device gets a ping for new exams." : "This browser can't take alerts. Try adding the board to your Home Screen.");
+    render();
+  },
+  "save-exam": async (el) => {
+    const a = val("xFrom"), b = val("xTo");
+    if (!a || !b) return toast("Pick the first and last day.");
+    if (b < a) return toast("The last day is before the first day.");
+    const st = fromInputs(a, "00:00"), en = fromInputs(b, "00:00"); en.setDate(en.getDate() + 1);   // through the end of the last day
+    if (en - st > 62 * DAY + 3600000) return toast("An exam season can be up to two months.");
+    if (!SHARED) {
+      S.exams.push({ id: uid(), member_id: ME, member_name: nameOf(ME), starts_at: st.toISOString(),
+                     ends_at: en.toISOString(), course: val("xCourse") || null });
+      local.set("hb:solo", S); closeModal(); render(); return toast("On the board. Good luck!");
+    }
+    el.disabled = true; lastWrite = Date.now();
+    try {
+      await rpc("add_exam", { p_code: CODE, p_starts: st.toISOString(), p_ends: en.toISOString(), p_course: val("xCourse") });
+      closeModal(); toast("On the board. Good luck!");
+    } catch (e) { el.disabled = false; toast(e.message); }
+    await loadExams(); render();
+  },
+  "drop-exam": async (el, id) => {
+    if (!SHARED) { S.exams = S.exams.filter(e => e.id !== id); local.set("hb:solo", S); return render(); }
+    lastWrite = Date.now();
+    try { await rpc("drop_exam", { p_code: CODE, p_id: id }); toast("Taken off the board."); }
+    catch (e) { toast(e.message); }
+    await loadExams(); render();
   },
   "add-period": (el, id) => {
     const rot = ll().rotations.find(r => r.id === id); if (!rot) return;
@@ -1893,6 +2050,7 @@ document.addEventListener("change", e => {
 });
 document.addEventListener("input", e => {
   const el = e.target.closest("[data-input]");
+  if (el && el.dataset.input === "exam-days") return drawExamDays();
   if (!el || el.dataset.input !== "cal-search") return;
   ui.q = el.value;
   ui.focus = "calSearch";
@@ -2274,7 +2432,7 @@ Object.assign(actions, {
   "del-meet-no": () => { ui.confirmDel = null; render(); },
   "del-meet": async (el, id) => { ui.confirmDel = null; await act("delete_meeting", { p_id: id }, "Meeting deleted. Its suggestions moved to the next one."); },
   notifs: () => openNotices(),
-  "allow-notifs": async () => { try { await Notification.requestPermission(); } catch (e) {} openNotices(); },
+  "allow-notifs": async () => { try { await Notification.requestPermission(); } catch (e) {} enablePush().then(render); openNotices(); },
   bview: (el, id) => { ui.bookView = id; render(); },
   home: () => { renderWelcome(); setLift(false); },
   theme: () => { const d = isDark(); document.documentElement.dataset.theme = d ? "light" : "dark"; local.set("hb:theme", d ? "light" : "dark"); drawTheme(); }
@@ -2373,7 +2531,7 @@ function buildShell() {
     </div>
     <div class="sheet" id="sheet">
       <div class="wtop"><div class="mark">HB</div><span>${esc(HOUSE_NAME)}</span></div>
-      <div class="wbody"><div><div class="hello" id="hello"></div><h1 id="welcome"></h1><div class="date" id="wdate"></div></div><div class="wtiles" id="wtiles"></div></div>
+      <div class="wbody"><div><div class="hello" id="hello"></div><h1 id="welcome"></h1><div class="date" id="wdate"></div><div class="wexams" id="wexams"></div></div><div class="wtiles" id="wtiles"></div></div>
       <button class="grab" id="grab" aria-label="Open the board"><span class="handle"></span><span>${ic("up")}Drag up to open the board</span></button>
     </div>
     <div class="scrim" id="scrim" data-action="close"></div>
@@ -2484,6 +2642,15 @@ function renderWelcome() {
   document.getElementById("hello").textContent = h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
   document.getElementById("welcome").innerHTML = `Welcome <em>${esc((nameOf(ME) || "").split(" ")[0])}</em>`;
   document.getElementById("wdate").textContent = `${WDL[now.getDay()]}, ${MONTH_NAMES[now.getMonth()]} ${now.getDate()}`;
+  // exams in the next three days, as a friendly heads-up rather than a rule
+  // exam seasons on now or starting in the next three days
+  const soon = examsAhead().filter(e => new Date(e.starts_at) - now < 3 * DAY);
+  const soonText = e => { const [a, b] = seasonDays(e), on = new Date(e.starts_at) <= now;
+    const who = e.member_id === ME ? (on ? "You're" : "Your") : esc(examWho(e).split(" ")[0]) + (on ? " is" : "'s");
+    return on ? `<b>${who}</b> in exam season until ${mdShort(b)}` : `<b>${who}</b> exam season starts ${mdShort(a)}`; };
+  document.getElementById("wexams").innerHTML = soon.length
+    ? `${ic("bell")}<span>${soon.slice(0, 3).map(e => soonText(e)).join(" · ")}${soon.length > 3 ? ` · +${soon.length - 3} more` : ""}. ${soon.every(e => e.member_id === ME) ? "You've got this." : "Good luck vibes, and please keep it quiet from midnight to 6 AM."}</span>`
+    : "";
   const next = meetingsAhead()[0];
   const n = cycleIndex(), a = assignFor(n), done = S.progress[n] || {};
   const myZone = S.config.zones.find(z => (a[z.id] || []).includes(ME));
@@ -2604,6 +2771,7 @@ setInterval(checkCycleEnd, 60000);
   render();
   subscribe();
   checkReminder(); checkBookingEnd(); checkCycleEnd();
+  if (await enablePush()) render();        // already allowed alerts: keep this device signed up
 })();
 
 if ("serviceWorker" in navigator && location.protocol === "https:") {
