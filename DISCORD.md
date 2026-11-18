@@ -86,9 +86,19 @@ Posting one again with the same name just updates it.
    2. **Edge Functions → `discord`:** paste the new `supabase/functions/discord/index.ts` → Deploy.
    3. Optional secret `DISCORD_EXAMS_WEBHOOK`: a webhook for an #exams channel. Without
       it, exam posts go to #noticeboard.
-   4. Register `/setupverify` (only people who can manage the server see it), the same way
-      as the laundry commands: `POST /applications/1560068767289974934/guilds/<server ID>/commands`
-      with `{"name":"setupverify","description":"Post Cindy's Get my role button here","type":1,"default_member_permissions":"32"}`.
+   4. Register `/setupverify` (only people who can manage the server see it). Cindy does it
+      with her own token: in the **SQL Editor**, run
+
+      ```sql
+      select net.http_post(
+        url     := 'https://gzlvqdcrewfcaegoxcno.supabase.co/functions/v1/discord',
+        headers := jsonb_build_object('Content-Type', 'application/json',
+                     'x-webhook-secret', (select value from discord_config where key = 'webhook_secret')),
+        body    := '{"table":"register_commands"}'::jsonb);
+      ```
+
+      A few seconds later, `/setupverify` shows up in Discord. (Edge Functions → `discord` →
+      Logs shows any error.)
    5. In Discord: **Server Settings → Roles → Cindy**: turn on **Manage Roles**, and drag
       Cindy's role **above** everyone's name roles (Discord only lets her edit roles below her own).
       She can only hand out permissions she has herself, which is already true if she's an admin.
